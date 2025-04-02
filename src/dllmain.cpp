@@ -1,4 +1,5 @@
 ﻿#include "dllmain.hpp"
+#include <functional>
 #include <amethyst/runtime/events/RegisterEvents.hpp>
 #include <minecraft/src/common/world/item/registry/ItemRegistry.hpp>
 #include <minecraft/src/common/world/actor/player/Player.hpp>
@@ -6,6 +7,7 @@
 #include <minecraft/src/common/world/actor/player/Inventory.hpp>
 #include <minecraft/src/common/world/level/BlockPos.hpp>
 #include <minecraft/src/common/world/level/ILevel.hpp>
+#include <minecraft/src/common/world/level/BlockSource.hpp>
 #include <minecraft/src/common/world/entity/components/ActorEquipmentComponent.hpp>
 #include <minecraft/src/common/world/entity/components/StateVectorComponent.hpp>
 
@@ -57,6 +59,26 @@ public:
 
     std::unique_ptr<IGameModeTimer> mTimer;
     std::unique_ptr<IGameModeMessenger> mMessenger;
+
+    BlockPos _calculatePlacePos(ItemStack& heldStack, const BlockPos& pos, FacingID& face) {
+        const Item* item = heldStack.getItem();
+
+        if (item) {
+            BlockPos result = pos;
+            item->calculatePlacePos(heldStack, *this->mPlayer, face, result);
+            return result;
+        }
+
+        BlockSource& blockSource = mPlayer->getDimensionBlockSource();
+        const Block& block = blockSource.getBlock(pos);
+
+        if (block.canBeBuiltOver(blockSource, pos)) {
+            face = Facing::Name::UP;
+            return pos;
+        }
+        
+        return pos.neighbor(face);
+    }
 };
 
 class SurvivalMode;
@@ -75,14 +97,22 @@ enum class InventoryTransactionError : uint32_t
 };
 
 class ItemUseInventoryTransaction {
-    std::byte padding0[0x100];
-    //std::byte padding8[0x100 - 8];
+    std::byte padding0[30];
+    BlockRuntimeId mTargetBlockId;
+    FacingID mFace;
+    int32_t mSlot;
+    std::byte padding44[212];
+
 
 public:
     ItemUseInventoryTransaction() {
 		using function = ItemUseInventoryTransaction *(__thiscall*)(ItemUseInventoryTransaction*);
         static auto func = reinterpret_cast<function>(SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F"));
 		func(this);
+    }
+
+    void setTargetBlock(const Block& block) {
+        this->mTargetBlockId = block.getRuntimeId();
     }
 
 //    virtual ~ItemUseInventoryTransaction() = default;
@@ -116,66 +146,114 @@ void Test2() {
 	Log::Info("Test2"); 
 }
 
+class ItemDescriptor {
+public:
+    struct ItemEntry {
+        const Item* mItem;
+		short mAuxValue;
+    };
 
-void GameMode_buildBlock(GameMode* self, BlockPos* pos, uint8_t face, bool isSimTick) {
+    struct BaseDescriptor {
+		virtual std::unique_ptr<BaseDescriptor> clone() const;
+    };
+
+    std::unique_ptr<BaseDescriptor> mImpl;
+
+    virtual std::unique_ptr<BaseDescriptor> clone() const;
+
+    ItemDescriptor(const ItemDescriptor& other) {
+		mImpl = other.mImpl->clone();
+    }
+
+	ItemDescriptor& operator=(const ItemDescriptor& other) {
+		if (this != &other) {
+            if (other.mImpl) {
+                mImpl = other.mImpl->clone();
+            }
+            else {
+				mImpl.reset();
+            }
+		}
+
+		return *this;
+	}
+
+    ItemDescriptor(ItemDescriptor&& other) noexcept = default;
+	ItemDescriptor& operator=(ItemDescriptor&& other) noexcept = default;
+	~ItemDescriptor() = default;
+
+    ItemDescriptor(const Item& item, short auxValue) {
+		
+    }
+};
+
+class InternalItemDescriptor : ItemDescriptor::BaseDescriptor {
+public:
+    ItemDescriptor::ItemEntry mItemEntry;
+};
+
+
+void GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSimTick) {
     Player* player = self->mPlayer;
     PlayerInventory* playerInv = player->playerInventory;
 	Inventory* inv = playerInv->mInventory.get();
     const ItemStack& mainItem = inv->getItem(playerInv->mSelected);
 
 	// Get the held item in the offhand
-    ActorEquipmentComponent* equipment = player->tryGetComponent<ActorEquipmentComponent>();
-    ItemStack& offhandItem = equipment->mHand->mItems[1];
+    //ActorEquipmentComponent* equipment = player->tryGetComponent<ActorEquipmentComponent>();
+    //ItemStack& offhandItem = equipment->mHand->mItems[1];
 
     // Todo: this should use more complex logic...
     // I.e. stick in mainhand, stone in offhand should use offhand since it has an action, while stick doesn't.
-    bool shouldUseOffhand = mainItem.isNull();
-    if (shouldUseOffhand && offhandItem.isNull()) return;
+    //bool shouldUseOffhand = mainItem.isNull();
+    //if (shouldUseOffhand && offhandItem.isNull()) return;
 
     // there should also be the logic with isSimTick here..
 
-	const ItemStack& itemToUse = shouldUseOffhand ? offhandItem : mainItem;
+	//const ItemStack& itemToUse = shouldUseOffhand ? offhandItem : mainItem;
+	const ItemStack& itemToUse = mainItem;
 	//Log::Info("Using item: {}", itemToUse.mItem->getRawNameId());
 
-    // v13 - *(*(this + 8) + 656i64);
-    // player + 656
-    StateVectorComponent* state = player->mBuiltInComponents.mStateVectorComponent.get();
-	self->mPlayerLastPosition = state->mPos;
+    self->mPlayerLastPosition = *player->getPosition();
 
     std::unique_ptr<ItemUseInventoryTransaction> transaction = std::make_unique<ItemUseInventoryTransaction>();
-
-    // if ( player && ((iLevel = *(player + 592)) == 0 || (*(*iLevel + 2176i64))(iLevel)) && (v16 = *(player + 6472)) != 0 )
-	// mPlayer->mItemStackNetManager = player + 6472
 
     if (player && (player->mLevel == nullptr || (player->mLevel->isClientSide() && player->mItemStackNetManager != nullptr))) {
 		player->mItemStackNetManager->_tryBeginClientLegacyTransactionRequest();
     }
     else {
-		Log::Error("Else branch not implemented");
-		throw std::exception("Else branch not implemented");
+        Log::Info("other not impl!");
+		// TODO!
     }
 
-    struct Temp {
-        uint64_t vtable;
-		GameMode* gameMode;
-        uint64_t unk;
-		BlockPos* pos;
-		unsigned char face;
-    };
+    playerInv->createTransactionContext(
+        [](Container&, int, const ItemStack&, const ItemStack) {
+            Log::Info("callback called! todo impl");
+        }, 
+        [&transaction, &self, pos, face]() {
+            Player* player = self->mPlayer;
+            ILevel* level = player->mLevel;
 
-    Temp temp = {};
-    temp.vtable = SlideAddress(0x4DE3BB8);
-	temp.gameMode = self;
-    temp.pos = pos;
-    temp.face = face;
+			ItemStack selectedItemCopy = player->getSelectedItem();
+            //ItemInstance itemInstance(selectedItemCopy);
+            // NetworkItemStackDescriptor networkDescriptor(selectedItemCopy);
+            
+			HitResult hitResult = level->getHitResult();
+			HitResult liquidHit = level->getLiquidHitResult();
 
-    std::function<void(*)(Container&, int, const ItemStack&, const ItemStack&)> first = &Test;
-    std::function<void()> second = Test2;
+			const BlockSource& region = player->getDimensionBlockSourceConst();
+            const Block& block = region.getBlock(*pos);
 
-    playerInv->createTransactionContext([](Container& container, int unkn, const ItemStack& item, const ItemStack& item2) {
-        
-        },
-        []() {  });
+            FacingID faceDir = face;
+            BlockPos calculatedPlacePos = self->_calculatePlacePos(selectedItemCopy, *pos, faceDir);
+
+            Log::Info("{} {}", calculatedPlacePos, faceDir);
+
+            // todo: I think this is possibly only used for scripting...
+            // maybe ignore for now
+            // PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
+        }
+    );
 }
 
 
