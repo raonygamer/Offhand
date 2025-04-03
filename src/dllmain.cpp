@@ -95,11 +95,13 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
         Log::Info("other not impl!");
     }
 
+    InteractionResult result;
+
     playerInv->createTransactionContext(
         [](Container&, int, const ItemStack&, const ItemStack) {
             Log::Info("callback called! todo impl");
         }, 
-        [&transaction, &self, pos, face]() {
+        [&transaction, &self, pos, face, &result]() {
             Log::Info("Execute!!");
 
             Player& player = self->mPlayer;
@@ -125,13 +127,38 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
                 transaction->mPos = *pos;
 				transaction->setTargetBlock(block);
                 transaction->mFace = faceDir;
+
+                Vec3 clickPos;
+
+                // I have no idea what this logic is is, IDA probably doesn't know what v83 is, and neither do I.
+                if ((v83 - 2) <= 1) {
+                    clickPos = Vec3::ZERO;
+                }
+                else {
+                    clickPos = Vec3::ZERO; // THIS IS TEMP WRONG!!!!
+                }
+                
+				transaction->mClickPos = clickPos;
+                transaction->mFromPos = *player.getPosition();
+
+                //if (block.isFenceBlock() && LeadItem::canBindPlayerMobs) {
+                if (block.isFenceBlock() && false) {
+                    result.mResult = InteractionResult::Result::UNKN_3;
+                }
+                else {
+                    result = self->useItemOn(selectedItemCopy, *pos, face, calculatedPlacePos, nullptr);
+                }
             }
+
+            //transaction->
 
             // todo: I think this is possibly only used for scripting...
             // maybe ignore for now
             // PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
         }
     );
+
+    Log::Info("Result {}", (int)result.mResult);
 
     // info: the execute lambda of createTransactionContext is called before this function
     // crashes if there are no transactions.
