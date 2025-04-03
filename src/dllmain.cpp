@@ -11,6 +11,8 @@
 #include <minecraft/src/common/world/entity/components/ActorEquipmentComponent.hpp>
 #include <minecraft/src/common/world/entity/components/StateVectorComponent.hpp>
 
+extern "C" void* ItemUseInventoryTransaction_ctor = nullptr;
+
 void OnRegisterItems(RegisterItemsEvent& event)
 {
     for (auto& pair : event.itemRegistry.mNameToItemMap) {
@@ -37,7 +39,7 @@ public:
     };
 
     uint64_t vtable;
-    Player* mPlayer;
+    Player& mPlayer;
     BlockPos mDestroyBlockPos;
     uint8_t mDestroyBlockFace;
     float mOldDestroyProgress;
@@ -65,11 +67,11 @@ public:
 
         if (item) {
             BlockPos result = pos;
-            item->calculatePlacePos(heldStack, *this->mPlayer, face, result);
+            item->calculatePlacePos(heldStack, mPlayer, face, result);
             return result;
         }
 
-        BlockSource& blockSource = mPlayer->getDimensionBlockSource();
+        BlockSource& blockSource = mPlayer.getDimensionBlockSource();
         const Block& block = blockSource.getBlock(pos);
 
         if (block.canBeBuiltOver(blockSource, pos)) {
@@ -96,20 +98,154 @@ enum class InventoryTransactionError : uint32_t
     ApiDenied = 0x8,
 };
 
-class ItemUseInventoryTransaction {
-    std::byte padding0[30];
+enum InventorySourceType {
+    InvalidInventory = 0xFFFFFFFF,
+    ContainerInventory = 0x0,
+    GlobalInventory = 0x1,
+    WorldInteraction = 0x2,
+    CreativeInventory = 0x3,
+    NonImplementedFeatureTODO = 0x1869F,
+};
+
+class InventorySource {
+public:
+    enum class InventorySourceFlags {
+        NoFlag = 0x0,
+        WorldInteraction_Random = 0x1,
+    };
+
+    InventorySourceType mType;
+	ContainerID mContainerId;
+	InventorySourceFlags mFlags;
+};
+
+class ItemDescriptor {
+public:
+    struct ItemEntry {
+        const Item* mItem;
+        short mAuxValue;
+    };
+
+    struct BaseDescriptor {
+        virtual std::unique_ptr<BaseDescriptor> clone() const;
+    };
+
+    std::unique_ptr<BaseDescriptor> mImpl;
+
+    virtual std::unique_ptr<BaseDescriptor> clone() const;
+
+    ItemDescriptor(const ItemDescriptor& other) {
+        mImpl = other.mImpl->clone();
+    }
+
+    ItemDescriptor& operator=(const ItemDescriptor& other) {
+        if (this != &other) {
+            if (other.mImpl) {
+                mImpl = other.mImpl->clone();
+            }
+            else {
+                mImpl.reset();
+            }
+        }
+
+        return *this;
+    }
+
+    ItemDescriptor(ItemDescriptor&& other) noexcept = default;
+    ItemDescriptor& operator=(ItemDescriptor&& other) noexcept = default;
+    ~ItemDescriptor() = default;
+
+    ItemDescriptor(const Item& item, short auxValue) {
+
+    }
+};
+
+class InternalItemDescriptor : ItemDescriptor::BaseDescriptor {
+public:
+    ItemDescriptor::ItemEntry mItemEntry;
+};
+
+class ItemDescriptorCount : ItemDescriptor {
+public:
+    uint16_t mStackSize;
+};
+
+class NetworkItemStackDescriptor : ItemDescriptorCount {
+	bool mIncludeNetIds;
+	ItemStackNetIdVariant mNetIdVariant;
+	BlockRuntimeId mBlockRuntimeId;
+	std::string mUserDataBuffer;
+};
+
+class InventoryAction {
+public:
+    InventorySource mSource;
+    unsigned int mSlot;
+    NetworkItemStackDescriptor mFromItemDescriptor;
+    NetworkItemStackDescriptor mToItemDescriptor;
+    ItemStack mFromItem;
+	ItemStack mToItem;
+};
+
+class InventoryTransactionItemGroup {
+public:
+    int mItemId;
+    int mItemAux;
+	std::unique_ptr<CompoundTag> mTag;
+    int mCount;
+    bool mOverflow;
+};
+
+class InventoryTransaction {
+public:
+	std::unordered_map<InventorySource, std::vector<InventoryAction>> mActions;
+    std::vector<InventoryTransactionItemGroup> mContents;
+};
+
+class ComplexInventoryTransaction {
+public:
+    enum Type {
+        NormalTransaction = 0x0,
+        InventoryMismatch = 0x1,
+        ItemUseTransaction = 0x2,
+        ItemUseOnEntityTransaction = 0x3,
+        ItemReleaseTransaction = 0x4,
+    };
+
+    uint64_t vtable;
+    Type mType;
+    InventoryTransaction mTransaction;
+};
+
+class ItemUseInventoryTransaction : public ComplexInventoryTransaction {
+public:
+    enum class ActionType {
+        Place,
+        Use,
+        Destroy
+    };
+
+	ActionType mActionType;
+    NetworkBlockPosition mPos;
     BlockRuntimeId mTargetBlockId;
     FacingID mFace;
     int32_t mSlot;
-    std::byte padding44[212];
-
+    NetworkItemStackDescriptor mItem;
+    Vec3 mFromPos;
+    Vec3 mClickPos;
 
 public:
-    ItemUseInventoryTransaction() {
-		using function = ItemUseInventoryTransaction *(__thiscall*)(ItemUseInventoryTransaction*);
-        static auto func = reinterpret_cast<function>(SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F"));
-		func(this);
-    }
+    //static ItemUseInventoryTransaction $ctor() {
+    //    std::byte buffer[sizeof(ItemUseInventoryTransaction)];
+
+    //    using function = ItemUseInventoryTransaction * (__thiscall*)(ItemUseInventoryTransaction*);
+    //    static auto func = reinterpret_cast<function>(SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F"));
+    //    func((ItemUseInventoryTransaction*)buffer);
+
+    //    return *(ItemUseInventoryTransaction*)buffer;
+    //}
+
+    ItemUseInventoryTransaction();
 
     void setTargetBlock(const Block& block) {
         this->mTargetBlockId = block.getRuntimeId();
@@ -146,84 +282,35 @@ void Test2() {
 	Log::Info("Test2"); 
 }
 
-class ItemDescriptor {
-public:
-    struct ItemEntry {
-        const Item* mItem;
-		short mAuxValue;
-    };
 
-    struct BaseDescriptor {
-		virtual std::unique_ptr<BaseDescriptor> clone() const;
-    };
-
-    std::unique_ptr<BaseDescriptor> mImpl;
-
-    virtual std::unique_ptr<BaseDescriptor> clone() const;
-
-    ItemDescriptor(const ItemDescriptor& other) {
-		mImpl = other.mImpl->clone();
-    }
-
-	ItemDescriptor& operator=(const ItemDescriptor& other) {
-		if (this != &other) {
-            if (other.mImpl) {
-                mImpl = other.mImpl->clone();
-            }
-            else {
-				mImpl.reset();
-            }
-		}
-
-		return *this;
-	}
-
-    ItemDescriptor(ItemDescriptor&& other) noexcept = default;
-	ItemDescriptor& operator=(ItemDescriptor&& other) noexcept = default;
-	~ItemDescriptor() = default;
-
-    ItemDescriptor(const Item& item, short auxValue) {
-		
-    }
-};
-
-class InternalItemDescriptor : ItemDescriptor::BaseDescriptor {
-public:
-    ItemDescriptor::ItemEntry mItemEntry;
-};
-
-
-void GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSimTick) {
-    Player* player = self->mPlayer;
-    PlayerInventory* playerInv = player->playerInventory;
+bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSimTick) {
+    Player& player = self->mPlayer;
+	ILevel* level = player.mLevel;
+    PlayerInventory* playerInv = player.playerInventory;
 	Inventory* inv = playerInv->mInventory.get();
-    const ItemStack& mainItem = inv->getItem(playerInv->mSelected);
 
-	// Get the held item in the offhand
-    //ActorEquipmentComponent* equipment = player->tryGetComponent<ActorEquipmentComponent>();
-    //ItemStack& offhandItem = equipment->mHand->mItems[1];
+    const ItemStack& selectedItem = inv->getItem(playerInv->mSelected);
+	const Item* item = selectedItem.getItem();
 
-    // Todo: this should use more complex logic...
-    // I.e. stick in mainhand, stone in offhand should use offhand since it has an action, while stick doesn't.
-    //bool shouldUseOffhand = mainItem.isNull();
-    //if (shouldUseOffhand && offhandItem.isNull()) return;
+    // The game seems to check things multiple times, i.e. selectedItem.isNull() covers some of the other cases in here
+    // but monkey see, monkey do, can always cleanup later
+    bool mayUseItem = !selectedItem.mValid
+        || !item
+        || selectedItem.isNull()
+        || selectedItem.mCount == 0
+        || !isSimTick
+        || item->canUseOnSimTick();
 
-    // there should also be the logic with isSimTick here..
+    if (!mayUseItem) return false;
 
-	//const ItemStack& itemToUse = shouldUseOffhand ? offhandItem : mainItem;
-	const ItemStack& itemToUse = mainItem;
-	//Log::Info("Using item: {}", itemToUse.mItem->getRawNameId());
-
-    self->mPlayerLastPosition = *player->getPosition();
-
+    self->mPlayerLastPosition = *player.getPosition();
     std::unique_ptr<ItemUseInventoryTransaction> transaction = std::make_unique<ItemUseInventoryTransaction>();
 
-    if (player && (player->mLevel == nullptr || (player->mLevel->isClientSide() && player->mItemStackNetManager != nullptr))) {
-		player->mItemStackNetManager->_tryBeginClientLegacyTransactionRequest();
+    if (player.mLevel == nullptr || (player.mLevel->isClientSide() && player.mItemStackNetManager != nullptr)) {
+		player.mItemStackNetManager->_tryBeginClientLegacyTransactionRequest();
     }
     else {
         Log::Info("other not impl!");
-		// TODO!
     }
 
     playerInv->createTransactionContext(
@@ -231,17 +318,17 @@ void GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
             Log::Info("callback called! todo impl");
         }, 
         [&transaction, &self, pos, face]() {
-            Player* player = self->mPlayer;
-            ILevel* level = player->mLevel;
+            Player& player = self->mPlayer;
+            ILevel* level = player.mLevel;
 
-			ItemStack selectedItemCopy = player->getSelectedItem();
+			ItemStack selectedItemCopy = player.getSelectedItem();
             //ItemInstance itemInstance(selectedItemCopy);
             // NetworkItemStackDescriptor networkDescriptor(selectedItemCopy);
             
 			HitResult hitResult = level->getHitResult();
 			HitResult liquidHit = level->getLiquidHitResult();
 
-			const BlockSource& region = player->getDimensionBlockSourceConst();
+			const BlockSource& region = player.getDimensionBlockSourceConst();
             const Block& block = region.getBlock(*pos);
 
             FacingID faceDir = face;
@@ -249,11 +336,22 @@ void GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 
             Log::Info("{} {}", calculatedPlacePos, faceDir);
 
+            Log::Info("Execute!!");
+
             // todo: I think this is possibly only used for scripting...
             // maybe ignore for now
             // PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
         }
     );
+
+    // info: the execute lambda of createTransactionContext is called before this function
+    // crashes if there are no transactions.
+    if (player.getLevel()->isClientSide()) {
+        Log::Info("SEND!!");
+		player.sendInventoryTransaction(transaction->mTransaction);
+    }
+
+    return true;
 }
 
 
@@ -270,6 +368,10 @@ ModFunction void Initialize(AmethystContext& ctx)
 
     Log::Info("PlayerInv offset: {}", offsetof(Player, playerInventory));
 
+    ItemUseInventoryTransaction_ctor = (void*)SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F");
+
     hooks.RegisterFunction<&GameMode_buildBlock>("48 89 5C 24 ? 48 89 74 24 ? 55 57 41 54 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 41 0F B6 F1");
 	hooks.CreateHook<&GameMode_buildBlock>(_GameMode_buildBlock, &GameMode_buildBlock);
+
+    
 }
