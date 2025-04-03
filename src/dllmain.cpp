@@ -10,6 +10,10 @@
 #include <minecraft/src/common/world/level/BlockSource.hpp>
 #include <minecraft/src/common/world/entity/components/ActorEquipmentComponent.hpp>
 #include <minecraft/src/common/world/entity/components/StateVectorComponent.hpp>
+#include <minecraft/src/common/world/gamemode/GameMode.hpp>
+#include <minecraft/src/common/world/item/ItemDescriptorCount.hpp>
+#include <minecraft/src/common/world/inventory/transaction/ItemUseInventoryTransaction.hpp>
+#include <minecraft/src/common/world/Facing.hpp>
 
 extern "C" void* ItemUseInventoryTransaction_ctor = nullptr;
 
@@ -21,245 +25,23 @@ void OnRegisterItems(RegisterItemsEvent& event)
     }
 }
 
-class IGameModeTimer;
-class IGameModeMessenger;
+//class IGameModeTimer;
+//class IGameModeMessenger;
+//class SurvivalMode;
 
-class GameMode {
-public:
-    class BuildContext {
-    public:
-        bool mHasBuildDirection;
-        bool mHasLastBuiltPosition;
-        bool mLastBuildBlockWasInteractive;
-        bool mLastBuildBlockWasSnappable;
-        BlockPos mLastBuiltBlockPosition;
-        BlockPos mBuildDirection;
-        BlockPos mNextBuildPos;
-        unsigned char mContinueFacing;
-    };
+//enum class InventoryTransactionError : uint32_t
+//{
+//    Unknown = 0x0,
+//    NoError = 0x1,
+//    BalanceMismatch = 0x2,
+//    SourceItemMismatch = 0x3,
+//    InventoryMismatch = 0x4,
+//    SizeMismatch = 0x5,
+//    AuthorityMismatch = 0x6,
+//    StateMismatch = 0x7,
+//    ApiDenied = 0x8,
+//};
 
-    uint64_t vtable;
-    Player& mPlayer;
-    BlockPos mDestroyBlockPos;
-    uint8_t mDestroyBlockFace;
-    float mOldDestroyProgress;
-    float mDestroyProgress;
-    long double mLastDestroyTime;
-    float mDistanceTravelled;
-    Vec3 mPlayerLastPosition;
-    GameMode::BuildContext mBuildContext;
-    float mMinPlayerSpeed;
-    int mContinueBreakBlockCount;
-
-    std::chrono::steady_clock::time_point mLastBuildTime;
-    std::chrono::steady_clock::time_point mNoDestroyUntil;
-    std::chrono::steady_clock::time_point mNoDestroySoundUntil;
-
-    std::chrono::milliseconds creativeDestructionTickDelay;
-    std::chrono::milliseconds buildingTickDelay;
-    std::chrono::milliseconds destroySoundDelay;
-
-    std::unique_ptr<IGameModeTimer> mTimer;
-    std::unique_ptr<IGameModeMessenger> mMessenger;
-
-    BlockPos _calculatePlacePos(ItemStack& heldStack, const BlockPos& pos, FacingID& face) {
-        const Item* item = heldStack.getItem();
-
-        if (item) {
-            BlockPos result = pos;
-            item->calculatePlacePos(heldStack, mPlayer, face, result);
-            return result;
-        }
-
-        BlockSource& blockSource = mPlayer.getDimensionBlockSource();
-        const Block& block = blockSource.getBlock(pos);
-
-        if (block.canBeBuiltOver(blockSource, pos)) {
-            face = Facing::Name::UP;
-            return pos;
-        }
-        
-        return pos.neighbor(face);
-    }
-};
-
-class SurvivalMode;
-
-enum class InventoryTransactionError : uint32_t
-{
-    Unknown = 0x0,
-    NoError = 0x1,
-    BalanceMismatch = 0x2,
-    SourceItemMismatch = 0x3,
-    InventoryMismatch = 0x4,
-    SizeMismatch = 0x5,
-    AuthorityMismatch = 0x6,
-    StateMismatch = 0x7,
-    ApiDenied = 0x8,
-};
-
-enum InventorySourceType {
-    InvalidInventory = 0xFFFFFFFF,
-    ContainerInventory = 0x0,
-    GlobalInventory = 0x1,
-    WorldInteraction = 0x2,
-    CreativeInventory = 0x3,
-    NonImplementedFeatureTODO = 0x1869F,
-};
-
-class InventorySource {
-public:
-    enum class InventorySourceFlags {
-        NoFlag = 0x0,
-        WorldInteraction_Random = 0x1,
-    };
-
-    InventorySourceType mType;
-	ContainerID mContainerId;
-	InventorySourceFlags mFlags;
-};
-
-class ItemDescriptor {
-public:
-    struct ItemEntry {
-        const Item* mItem;
-        short mAuxValue;
-    };
-
-    struct BaseDescriptor {
-        virtual std::unique_ptr<BaseDescriptor> clone() const;
-    };
-
-    std::unique_ptr<BaseDescriptor> mImpl;
-
-    virtual std::unique_ptr<BaseDescriptor> clone() const;
-
-    ItemDescriptor(const ItemDescriptor& other) {
-        mImpl = other.mImpl->clone();
-    }
-
-    ItemDescriptor& operator=(const ItemDescriptor& other) {
-        if (this != &other) {
-            if (other.mImpl) {
-                mImpl = other.mImpl->clone();
-            }
-            else {
-                mImpl.reset();
-            }
-        }
-
-        return *this;
-    }
-
-    ItemDescriptor(ItemDescriptor&& other) noexcept = default;
-    ItemDescriptor& operator=(ItemDescriptor&& other) noexcept = default;
-    ~ItemDescriptor() = default;
-
-    ItemDescriptor(const Item& item, short auxValue) {
-
-    }
-};
-
-class InternalItemDescriptor : ItemDescriptor::BaseDescriptor {
-public:
-    ItemDescriptor::ItemEntry mItemEntry;
-};
-
-class ItemDescriptorCount : ItemDescriptor {
-public:
-    uint16_t mStackSize;
-};
-
-class NetworkItemStackDescriptor : ItemDescriptorCount {
-	bool mIncludeNetIds;
-	ItemStackNetIdVariant mNetIdVariant;
-	BlockRuntimeId mBlockRuntimeId;
-	std::string mUserDataBuffer;
-};
-
-class InventoryAction {
-public:
-    InventorySource mSource;
-    unsigned int mSlot;
-    NetworkItemStackDescriptor mFromItemDescriptor;
-    NetworkItemStackDescriptor mToItemDescriptor;
-    ItemStack mFromItem;
-	ItemStack mToItem;
-};
-
-class InventoryTransactionItemGroup {
-public:
-    int mItemId;
-    int mItemAux;
-	std::unique_ptr<CompoundTag> mTag;
-    int mCount;
-    bool mOverflow;
-};
-
-class InventoryTransaction {
-public:
-	std::unordered_map<InventorySource, std::vector<InventoryAction>> mActions;
-    std::vector<InventoryTransactionItemGroup> mContents;
-};
-
-class ComplexInventoryTransaction {
-public:
-    enum Type {
-        NormalTransaction = 0x0,
-        InventoryMismatch = 0x1,
-        ItemUseTransaction = 0x2,
-        ItemUseOnEntityTransaction = 0x3,
-        ItemReleaseTransaction = 0x4,
-    };
-
-    uint64_t vtable;
-    Type mType;
-    InventoryTransaction mTransaction;
-};
-
-class ItemUseInventoryTransaction : public ComplexInventoryTransaction {
-public:
-    enum class ActionType {
-        Place,
-        Use,
-        Destroy
-    };
-
-	ActionType mActionType;
-    NetworkBlockPosition mPos;
-    BlockRuntimeId mTargetBlockId;
-    FacingID mFace;
-    int32_t mSlot;
-    NetworkItemStackDescriptor mItem;
-    Vec3 mFromPos;
-    Vec3 mClickPos;
-
-public:
-    //static ItemUseInventoryTransaction $ctor() {
-    //    std::byte buffer[sizeof(ItemUseInventoryTransaction)];
-
-    //    using function = ItemUseInventoryTransaction * (__thiscall*)(ItemUseInventoryTransaction*);
-    //    static auto func = reinterpret_cast<function>(SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F"));
-    //    func((ItemUseInventoryTransaction*)buffer);
-
-    //    return *(ItemUseInventoryTransaction*)buffer;
-    //}
-
-    ItemUseInventoryTransaction();
-
-    void setTargetBlock(const Block& block) {
-        this->mTargetBlockId = block.getRuntimeId();
-    }
-
-//    virtual ~ItemUseInventoryTransaction() = default;
-//    virtual void unk1(); // read 8 
-//	virtual void unk2(); // write 16
-//	virtual void unk3(); // postLoadItems 24
-//	virtual void unk4(); // handle 32
-//	virtual void onTransactionError(Player& player, InventoryTransactionError error); // 40
-};
-
-static_assert(sizeof(ItemUseInventoryTransaction) == 0x100);
 
 class ItemStackNetManagerBase {
 public:
@@ -318,6 +100,8 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
             Log::Info("callback called! todo impl");
         }, 
         [&transaction, &self, pos, face]() {
+            Log::Info("Execute!!");
+
             Player& player = self->mPlayer;
             ILevel* level = player.mLevel;
 
@@ -334,9 +118,14 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
             FacingID faceDir = face;
             BlockPos calculatedPlacePos = self->_calculatePlacePos(selectedItemCopy, *pos, faceDir);
 
-            Log::Info("{} {}", calculatedPlacePos, faceDir);
-
-            Log::Info("Execute!!");
+			// From the dissasembly, this will always run... because v83 and v74 are always false. sus
+            bool v83 = false;
+            bool v74 = false;
+            if (!v83 || !v74 || self->mBuildContext.mHasBuildDirection) {
+                transaction->mPos = *pos;
+				transaction->setTargetBlock(block);
+                transaction->mFace = faceDir;
+            }
 
             // todo: I think this is possibly only used for scripting...
             // maybe ignore for now
