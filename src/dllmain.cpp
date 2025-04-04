@@ -14,6 +14,7 @@
 #include <minecraft/src/common/world/item/ItemDescriptorCount.hpp>
 #include <minecraft/src/common/world/inventory/transaction/ItemUseInventoryTransaction.hpp>
 #include <minecraft/src/common/world/Facing.hpp>
+#include <minecraft/src/common/world/gamemode/GameModeMessenger.hpp>
 
 extern "C" void* ItemUseInventoryTransaction_ctor = nullptr;
 
@@ -64,6 +65,15 @@ void Test2() {
 	Log::Info("Test2"); 
 }
 
+class PlayerEventCoordinator {
+public:
+    void sendPlayerItemPlaceInteraction(Player& player, const ItemInstance& item) {
+		using function = decltype(&PlayerEventCoordinator::sendPlayerItemPlaceInteraction);
+        static auto func = std::bit_cast<function>(SigScan("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 4C 8B EA 48 8B F1"));
+		(this->*func)(player, item);
+    }
+};
+
 
 bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSimTick) {
     Player& player = self->mPlayer;
@@ -87,6 +97,7 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 
     self->mPlayerLastPosition = *player.getPosition();
     std::unique_ptr<ItemUseInventoryTransaction> transaction = std::make_unique<ItemUseInventoryTransaction>();
+    Log::Info("transaction type {}", (int)transaction->mType);
     std::optional<gsl::final_action<std::function<void()>>> onTransactionEnd;
 
     if (player.isClientSide() && player.mItemStackNetManager != nullptr) {
@@ -109,7 +120,7 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
             ILevel* level = player.mLevel;
 
 			ItemStack selectedItemCopy = player.getSelectedItem();
-            //ItemInstance itemInstance(selectedItemCopy);
+            ItemInstance itemInstance(selectedItemCopy);
             // NetworkItemStackDescriptor networkDescriptor(selectedItemCopy);
             
 			HitResult hitResult = level->getHitResult();
@@ -145,18 +156,43 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 
                 //if (block.isFenceBlock() && LeadItem::canBindPlayerMobs) {
                 if (block.isFenceBlock() && false) {
-                    result.mResult = InteractionResult::Result::UNKN_3;
+                    result.mResult = (int)InteractionResult::Result::SUCCESS | (int)InteractionResult::Result::SWING;
                 }
                 else {
+                    // IMPORTANT WILL BREAK: GameMode::_sendUseItemOnEvents uses Player::getSelectedItem oof.
+                    // IDA detects it doesn't actually use it tho?
                     result = self->useItemOn(selectedItemCopy, *pos, face, clickPos, nullptr);
                 }
             }
 
-            //transaction->
+            // This section handles liquid clipped items, i.e. lillypads on water
+            bool isLiquidClippingItem = (result.mResult & (int)InteractionResult::Result::SUCCESS) == 0
+                && !selectedItemCopy.isNull()
+                && selectedItemCopy.isLiquidClipItem()
+                && !selectedItemCopy.shouldInteractionWithBlockBypassLiquid(block);
 
-            // todo: I think this is possibly only used for scripting...
-            // maybe ignore for now
-            //PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
+            if (isLiquidClippingItem) {
+                Log::Info("Todo: Handle liquid clipping items");
+            }
+
+            // Block placement timings
+            if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0) {
+				self->mBuildContext.mLastBuiltBlockPosition = calculatedPlacePos;
+
+                // Seems to get reset often enogu to be false each item use.
+                if (!self->mBuildContext.mHasLastBuiltPosition) {
+                    self->mMessenger->startSendItemUseOn(*pos, self->mBuildContext.mLastBuiltBlockPosition, (int)face);
+					self->mBuildContext.mHasLastBuiltPosition = true;
+                }
+
+				self->mLastBuildTime = std::chrono::steady_clock::now();
+                if ((result.mResult & (int)InteractionResult::Result::SWING) != 0) {
+					player.swing();
+                }
+            }
+
+            PlayerEventCoordinator* eventCoordinator = player.getPlayerEventCoordinator();
+			eventCoordinator->sendPlayerItemPlaceInteraction(player, itemInstance);
         }
     );
 
