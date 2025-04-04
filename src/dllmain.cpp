@@ -87,12 +87,15 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 
     self->mPlayerLastPosition = *player.getPosition();
     std::unique_ptr<ItemUseInventoryTransaction> transaction = std::make_unique<ItemUseInventoryTransaction>();
+    std::optional<gsl::final_action<std::function<void()>>> onTransactionEnd;
 
-    if (player.mLevel == nullptr || (player.mLevel->isClientSide() && player.mItemStackNetManager != nullptr)) {
-		player.mItemStackNetManager->_tryBeginClientLegacyTransactionRequest();
+    if (player.isClientSide() && player.mItemStackNetManager != nullptr) {
+        onTransactionEnd.emplace(player.mItemStackNetManager->_tryBeginClientLegacyTransactionRequest());
     }
     else {
-        Log::Info("other not impl!");
+        onTransactionEnd.emplace([] {
+            Log::Info("Todo implement this branch");
+        });
     }
 
     InteractionResult result;
@@ -102,8 +105,6 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
             Log::Info("callback called! todo impl");
         }, 
         [&transaction, &self, pos, face, &result]() {
-            Log::Info("Execute!!");
-
             Player& player = self->mPlayer;
             ILevel* level = player.mLevel;
 
@@ -140,13 +141,14 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
                 
 				transaction->mClickPos = clickPos;
                 transaction->mFromPos = *player.getPosition();
+                transaction->mActionType = face == FacingID::MAX ? ItemUseInventoryTransaction::ActionType::Use : ItemUseInventoryTransaction::ActionType::Place;
 
                 //if (block.isFenceBlock() && LeadItem::canBindPlayerMobs) {
                 if (block.isFenceBlock() && false) {
                     result.mResult = InteractionResult::Result::UNKN_3;
                 }
                 else {
-                    result = self->useItemOn(selectedItemCopy, *pos, face, calculatedPlacePos, nullptr);
+                    result = self->useItemOn(selectedItemCopy, *pos, face, clickPos, nullptr);
                 }
             }
 
@@ -154,14 +156,14 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 
             // todo: I think this is possibly only used for scripting...
             // maybe ignore for now
-            // PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
+            //PlayerEventCoordinator* eventCoordinator = player->getPlayerEventCoordinator();
         }
     );
 
     Log::Info("Result {}", (int)result.mResult);
 
     // info: the execute lambda of createTransactionContext is called before this function
-    // crashes if there are no transactions.
+    // crashes if there are no transactions?
     if (player.getLevel()->isClientSide()) {
         Log::Info("SEND!!");
 		player.sendInventoryTransaction(transaction->mTransaction);
