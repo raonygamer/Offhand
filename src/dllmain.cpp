@@ -15,6 +15,8 @@
 #include <minecraft/src/common/world/inventory/transaction/ItemUseInventoryTransaction.hpp>
 #include <minecraft/src/common/world/Facing.hpp>
 #include <minecraft/src/common/world/gamemode/GameModeMessenger.hpp>
+#include <minecraft/src/common/world/inventory/network/ItemStackNetManagerBase.hpp>
+#include <minecraft/src/common/world/events/PlayerEventListener.hpp>
 
 extern "C" void* ItemUseInventoryTransaction_ctor = nullptr;
 
@@ -44,15 +46,7 @@ void OnRegisterItems(RegisterItemsEvent& event)
 //};
 
 
-class ItemStackNetManagerBase {
-public:
-	virtual ~ItemStackNetManagerBase() = default;
-	virtual void unk1();
-	virtual void unk2();
-	virtual void unk3();
-	virtual void unk4();
-	virtual gsl::final_action<std::function<void(void)>> _tryBeginClientLegacyTransactionRequest();
-};
+
 
 
 SafetyHookInline _GameMode_buildBlock;
@@ -67,10 +61,10 @@ void Test2() {
 
 class PlayerEventCoordinator {
 public:
-    void sendPlayerItemPlaceInteraction(Player& player, const ItemInstance& item) {
-		using function = decltype(&PlayerEventCoordinator::sendPlayerItemPlaceInteraction);
+    void todoMoveToProperClass_processEvent(std::function<EventResult(class PlayerEventListener&)>& ev) {
+		using function = decltype(&PlayerEventCoordinator::todoMoveToProperClass_processEvent);
         static auto func = std::bit_cast<function>(SigScan("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 4C 8B EA 48 8B F1"));
-		(this->*func)(player, item);
+		(this->*func)(ev);
     }
 };
 
@@ -188,11 +182,18 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
 				self->mLastBuildTime = std::chrono::steady_clock::now();
                 if ((result.mResult & (int)InteractionResult::Result::SWING) != 0) {
 					player.swing();
-                }
+                } 
             }
 
-            PlayerEventCoordinator* eventCoordinator = player.getPlayerEventCoordinator();
-			eventCoordinator->sendPlayerItemPlaceInteraction(player, itemInstance);
+            PlayerEventCoordinator& eventCoordinator = player.getPlayerEventCoordinator();
+
+            std::function<EventResult(PlayerEventListener&)> ev = [&player, &itemInstance](PlayerEventListener& listener) {
+                EventResult result = listener.onPlayerItemUseInteraction(player, itemInstance);
+				Log::Info("onPlayerItemUseInteraction {}", (int)result);
+                return result;
+            };
+
+            eventCoordinator.todoMoveToProperClass_processEvent(ev);
         }
     );
 
@@ -202,7 +203,7 @@ bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSi
     // crashes if there are no transactions?
     if (player.getLevel()->isClientSide()) {
         Log::Info("SEND!!");
-		player.sendInventoryTransaction(transaction->mTransaction);
+		//player.sendInventoryTransaction(transaction->mTransaction);
     }
 
     return true;
