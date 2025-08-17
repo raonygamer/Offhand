@@ -13,7 +13,7 @@ set_version(string.format("%d.%d.%d", major, minor, patch))
 
 -- RelWithDebInfo flags
 add_cxxflags("/O2", "/Zi", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
-add_ldflags("/DEBUG", "/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
+add_ldflags("/DEBUG:FULL", "/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
 includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI"))
 
 -- Use NASM for generated asm thunks
@@ -68,6 +68,7 @@ local modFolder = path.join(
 )
 
 set_targetdir(modFolder)
+add_ldflags(string.format("/PDB:%s/%s.pdb", modFolder, mod_name), {force = true})
 
 target(mod_name)
     set_kind("shared")
