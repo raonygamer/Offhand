@@ -21,6 +21,7 @@
 #include <minecraft/src/common/world/inventory/transaction/InventoryTransactionManager.hpp>
 #include <minecraft/src/common/world/level/BlockSource.hpp>
 #include <minecraft/src/common/world/level/Level.hpp>
+#include <minecraft/src/common/world/level/BlockPalette.hpp>
 
 extern "C" void *ItemUseInventoryTransaction_ctor = nullptr;
 extern "C" void *NetworkItemStackDescriptor_ctor = nullptr;
@@ -48,144 +49,6 @@ public:
 };
 
 SafetyHookInline _GameMode_buildBlock;
-
-// bool GameMode_buildBlock(GameMode* self, BlockPos* pos, FacingID face, bool isSimTick) {
-//     Player& player = self->mPlayer;
-//	ILevel* level = player.mLevel;
-//     PlayerInventory* playerInv = player.playerInventory;
-//	Inventory* inv = playerInv->mInventory.get();
-//
-//     const ItemStack& selectedItem = inv->getItem(playerInv->mSelected);
-//	const Item* item = selectedItem.getItem();
-//
-//     // The game seems to check things multiple times, i.e. selectedItem.isNull() covers some of the other cases in here
-//     // Going for accuracy so do anyway ig
-//     bool mayUseItem = !selectedItem.mValid
-//         || !item
-//         || selectedItem.isNull()
-//         || selectedItem.mCount == 0
-//         || !isSimTick
-//         || item->canUseOnSimTick();
-//
-//     if (!mayUseItem) {
-//         Log::Info("May not use item!!");
-//         return false;
-//     }
-//
-//     self->mPlayerLastPosition = *player.getPosition();
-//     std::unique_ptr<ItemUseInventoryTransaction> transaction = std::make_unique<ItemUseInventoryTransaction>();
-//
-//	bool useLegacyTransaction = player.isClientSide() && player.mItemStackNetManager != nullptr;
-//
-//     // gsl::final_action runs code at the end of the scope
-//     // Game only uses for legacy transaction
-//     auto onScopeClosed = useLegacyTransaction
-//         ? player.mItemStackNetManager->_tryBeginClientLegacyTransactionRequest()
-//         : gsl::final_action<std::function<void()>>([]() {});
-//
-//     InteractionResult result;
-//
-//     playerInv->createTransactionContext(
-//         [&transaction, &self](Container& container, unsigned int slot, const ItemStack& oldStack, const ItemStack newStack) {
-//             InventorySource source(InventorySourceType::ContainerInventory, ContainerID::CONTAINER_ID_INVENTORY, InventorySource::InventorySourceFlags::NoFlag);
-//             InventoryAction action(source, slot, oldStack, newStack);
-//
-//			self->mPlayer.mTransactionManager.addExpectedAction(action);
-//			transaction->mTransaction.addAction(action);
-//         },
-//         [&transaction, &self, pos, face, &result]() {
-//             Player& player = self->mPlayer;
-//             ILevel* level = player.mLevel;
-//
-//			ItemStack selectedItemCopy = player.getSelectedItem();
-//             ItemInstance itemInstance(selectedItemCopy);
-//
-//             NetworkItemStackDescriptor networkDescriptor(selectedItemCopy);
-//             transaction->mItem = networkDescriptor;
-//
-//			HitResult hitResult = level->getHitResult();
-//			HitResult liquidHit = level->getLiquidHitResult();
-//
-//			const BlockSource& region = player.getDimensionBlockSourceConst();
-//             const Block& block = region.getBlock(*pos);
-//
-//             FacingID faceDir = face;
-//             BlockPos calculatedPlacePos = self->_calculatePlacePos(selectedItemCopy, *pos, faceDir);
-//
-//             if (hitResult.mType == HitResultType::TILE || liquidHit.mLiquid.y == 0 || self->mBuildContext.mHasBuildDirection) {
-//                 transaction->mPos = *pos;
-//				transaction->setTargetBlock(block);
-//                 transaction->mFace = faceDir;
-//
-//                 Vec3 clickPos;
-//
-//                 if (hitResult.mType == HitResultType::NO_HIT) {
-//                     clickPos = Vec3::ZERO;
-//                 }
-//                 else {
-//                     clickPos = hitResult.mPos - Vec3(*pos);
-//                 }
-//
-//				transaction->mClickPos = clickPos;
-//                 transaction->mFromPos = *player.getPosition();
-//                 transaction->mActionType = face == FacingID::MAX ? ItemUseInventoryTransaction::ActionType::Use : ItemUseInventoryTransaction::ActionType::Place;
-//
-//                 //if (block.isFenceBlock() && LeadItem::canBindPlayerMobs) {
-//                 if (block.isFenceBlock() && false) {
-//                     result.mResult = (int)InteractionResult::Result::SUCCESS | (int)InteractionResult::Result::SWING;
-//                 }
-//                 else {
-//                     // IMPORTANT WILL BREAK: GameMode::_sendUseItemOnEvents uses Player::getSelectedItem oof.
-//                     // IDA detects it doesn't actually use it tho?
-//                     result = self->useItemOn(selectedItemCopy, *pos, face, hitResult.mPos, nullptr);
-//                 }
-//             }
-//
-//             // This section handles liquid clipped items, i.e. lillypads on water
-//             bool isLiquidClippingItem = (result.mResult & (int)InteractionResult::Result::SUCCESS) == 0
-//                 && !selectedItemCopy.isNull()
-//                 && selectedItemCopy.isLiquidClipItem()
-//                 && !selectedItemCopy.shouldInteractionWithBlockBypassLiquid(block);
-//
-//             if (isLiquidClippingItem) {
-//                 Log::Info("Todo: Handle liquid clipping items");
-//             }
-//
-//             // Block placement timings
-//             if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0) {
-//				self->mBuildContext.mLastBuiltBlockPosition = calculatedPlacePos;
-//
-//                 // Seems to get reset often enogu to be false each item use.
-//                 if (!self->mBuildContext.mHasLastBuiltPosition) {
-//                     self->mMessenger->startSendItemUseOn(*pos, self->mBuildContext.mLastBuiltBlockPosition, (int)face);
-//					self->mBuildContext.mHasLastBuiltPosition = true;
-//                 }
-//
-//				self->mLastBuildTime = std::chrono::steady_clock::now();
-//                 if ((result.mResult & (int)InteractionResult::Result::SWING) != 0) {
-//					player.swing();
-//                 }
-//             }
-//
-//             PlayerEventCoordinator& eventCoordinator = player.getPlayerEventCoordinator();
-//
-//             std::function<EventResult(PlayerEventListener&)> ev = [&player, &itemInstance](PlayerEventListener& listener) {
-//                 EventResult result = listener.onPlayerItemUseInteraction(player, itemInstance);
-//                 return result;
-//             };
-//
-//             eventCoordinator.todoMoveToProperClass_processEvent(ev);
-//         }
-//     );
-//
-//     Log::Info("InteractResult: {}", result.mResult);
-//
-//     if (player.getLevel()->isClientSide()) {
-//		player.sendComplexInventoryTransaction(std::move(transaction));
-//     }
-//
-//     return true;
-// }
 
 SafetyHookInline _GameMode_useItemOn;
 
@@ -465,7 +328,7 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
     BlockPalette& blockPalette = level.getBlockPalette();
 
     ItemStack stack = ItemStack::fromDescriptor(self->mItem, blockPalette, isClientSide);
-    Log::Info("ItemUseInventoryTransaction_handle stack {}", stack);
+    Log::Info("ItemUseInventoryTransaction_handle stack {} actionType {}", stack, (int)self->mActionType);
 
     PlayerInventory& playerInv = *player.playerInventory;
     Inventory& inv = *playerInv.mInventory.get();
@@ -478,10 +341,109 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
     bool usedMainhand = stack.mItem == mainHandItem.mItem;
     const ItemStack& stackToUse = usedMainhand ? mainHandItem : offHandItem;
 
-    Log::Info("usedStack {}", stackToUse);
-    
+    bool itemsMatch = true; // InventoryTransaction::checkTransactionItemsMatch
+	bool slotsMatch = true; // self->mSlot == playerInv.mSelected; <- to check properly probs need to switch between offhand and inv slots
 
-    return InventoryTransactionError::Success;
+    bool areItemsAndSlotsValid = isSenderAuthority || itemsMatch && slotsMatch;
+
+    if (!areItemsAndSlotsValid) {
+        Log::Info("ItemUseInventoryTransaction_handle: Invalid transaction, isSenderAuthority: {}, itemsMatch: {}, slotsMatch: {}", isSenderAuthority, itemsMatch, slotsMatch);
+        return InventoryTransactionError::ProbablyError;
+    }
+
+    GameMode& gameMode = player.getGameMode();
+    float maxPickRange = gameMode.getMaxPickRange() + 0.5f;
+    bool distanceCheck = true; // todo add
+
+    bool isValidAction = self->mActionType == ItemUseInventoryTransaction::ActionType::Use || distanceCheck || isSenderAuthority;
+
+    if (!isValidAction) {
+        Log::Info("ItemUseInventoryTransaction_handle: Invalid action type: {}", (int)self->mActionType);
+        return InventoryTransactionError::ProbablyError;
+    }
+
+	InventorySource source(
+        InventorySourceType::ContainerInventory, 
+        usedMainhand ? ContainerID::CONTAINER_ID_INVENTORY : ContainerID::CONTAINER_ID_OFFHAND, 
+        InventorySource::InventorySourceFlags::NoFlag
+    );
+
+	const std::vector<InventoryAction>& actions = self->mTransaction.getActions(source);
+    
+    for (auto& action : actions) {
+        // todo: game does something, there are no actions sent for placing blocks it seems?
+    }
+
+    playerInv.createTransactionContext(
+        [&self](Container& container, unsigned int slot, const ItemStack& oldStack, const ItemStack newStack) {
+            Log::Info("top half");
+        },
+        [&self, &gameMode, &stackToUse, &level]() {
+            Log::Info("bottom half");
+
+            if (self->mActionType == ItemUseInventoryTransaction::ActionType::Use) {
+				ItemStack stackCopy = ItemStack(stackToUse);
+
+                // Seems to return false for things the server needs to update the client on
+                // i.e. stone block returns true
+                // but torch item returns false
+                if (!gameMode.baseUseItem(stackCopy)) {
+                    Log::Info("calling ItemUseInventoryTransaction::resendPlayerState");
+					self->resendPlayerState(gameMode.mPlayer);
+                }
+
+                Log::Info("before {}, after: {}", stackToUse, stackCopy);
+            }
+            else if (self->mActionType == ItemUseInventoryTransaction::ActionType::Destroy) {
+				Log::Info("todo impl self->mActionType == ItemUseInventoryTransaction::ActionType::Destroy");
+            }
+            else if (self->mActionType == ItemUseInventoryTransaction::ActionType::Place) {
+				bool isClientSide = level.isClientSide;
+                BlockPalette& blockPalette = level.getBlockPalette();
+                ItemStack stackCopy = ItemStack(stackToUse);
+
+                // Idk why this exists or what the fuck it does... 
+                //if (!Actor::isSneaking(*(a1 + 8)))
+                //{
+                //    v8 = Player::getSelectedItem(*(a1 + 8));
+                //    ItemStack::operator=(&itemStack, v8);
+                //}
+
+				const Block& blockToPlaceOn = blockPalette.getBlock(self->mTargetBlockId);
+                Log::Info("blockToPlace {}", blockToPlaceOn.mLegacyBlock->mNameInfo.mFullName.getString());
+
+                Block* v18 = nullptr;
+                //Actor::setPos(*(a1 + 8), (*a1 + 232i64));
+
+                /*while (1)
+                {
+                    v18 = *v17;
+                    if ((*v17)->mSerializationIdHash == v14->mSerializationIdHash)
+                        break;
+                    mLegacyBlock = v18->mLegacyBlock;
+                    if (!mLegacyBlock || (v16 = v14->mLegacyBlock) == 0i64)
+                        gsl::details::terminate(v16);
+                    if (mLegacyBlock == v16 && Block::allowStateMismatchOnPlacement(*v17, v14))
+                        break;
+                    if (++v17 == &v42)
+                        goto LABEL_17;
+                }*/
+
+                InteractionResult result = gameMode.useItemOn(stackCopy, self->mPos, self->mFace, self->mClickPos, v18);
+                // Actor::setPos(*(a1 + 8), v39);
+
+                if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0)
+                {
+                    Log::Info("result was success. yippee");
+                }
+                else {
+                    Log::Info("resend");
+                }
+            }
+        }
+    );
+
+    return InventoryTransactionError::ProbablyError; // todo: return correct error code
 }
 
 // Ran when the mod is loaded into the game by AmethystRuntime
