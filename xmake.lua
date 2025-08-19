@@ -12,8 +12,8 @@ set_project(mod_name)
 set_version(string.format("%d.%d.%d", major, minor, patch))
 
 -- RelWithDebInfo flags
-add_cxxflags("/O2", "/Zi", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
-add_ldflags("/DEBUG:FULL", "/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
+add_cxxflags("/O2", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
+add_ldflags("/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
 includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI"))
 
 -- Use NASM for generated asm thunks
@@ -67,8 +67,8 @@ local modFolder = path.join(
     string.format("%s@%s", mod_name, mod_version)
 )
 
+set_symbols("debug")
 set_targetdir(modFolder)
-add_ldflags(string.format("/PDB:%s/%s.pdb", modFolder, mod_name), {force = true})
 
 target(mod_name)
     set_kind("shared")
@@ -76,8 +76,8 @@ target(mod_name)
     add_deps("AmethystAPI")
     
     -- Force rebuild when any source file changes
-    set_policy("build.optimization.lto", false)
-    set_policy("build.across_targets_in_parallel", false)
+    set_policy("build.optimization.lto", true )
+    set_policy("build.across_targets_in_parallel", true )
 
     add_files(
         "src/**.cpp",

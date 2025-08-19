@@ -20,13 +20,14 @@
 #include <minecraft/src/common/world/inventory/transaction/ComplexInventoryTransaction.hpp>
 #include <minecraft/src/common/world/inventory/transaction/InventoryTransactionManager.hpp>
 #include <minecraft/src/common/world/level/BlockSource.hpp>
+#include <minecraft/src/common/world/level/Level.hpp>
 
 extern "C" void *ItemUseInventoryTransaction_ctor = nullptr;
 extern "C" void *NetworkItemStackDescriptor_ctor = nullptr;
 
 void OnRegisterItems(RegisterItemsEvent &event)
 {
-    Log::Info("OnRegisterItems");
+    //Log::Info("OnRegisterItems");
 
     for (auto &pair : event.itemRegistry.mNameToItemMap)
     {
@@ -188,13 +189,19 @@ SafetyHookInline _GameMode_buildBlock;
 
 SafetyHookInline _GameMode_useItemOn;
 
-InteractionResult GameMode_useItemOn(GameMode* self, ItemStack& item, const BlockPos& at, FacingID face, const Vec3& hit, const Block* targetBlock)
+//InteractionResult GameMode_useItemOn(GameMode* self, ItemStack& item, const BlockPos& at, FacingID face, const Vec3& hit, const Block* targetBlock)
+// Returning an InteractionResult directly is for some reason returning in a different register than the one used by the game
+// force it lmao
+InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result, ItemStack& item, const BlockPos& at, FacingID face, const Vec3& hit, const Block* targetBlock)
 {
     // todo: seems to set self+0x40 to 0
     bool isSneakDown = false; // todo: get this
 
-    InteractionResult result;
+    result->mResult = 0;
 
+    //Log::Info("GameMode_useItemOn {}", self->mPlayer.isClientSide() ? "client" : "server");
+
+    // idk what this does but it doesn't seem to have anything to do with networking / decreasing item stack
     if ((self->_sendUseItemOnEvents(item, at, face, hit).mResult & (int)InteractionResult::Result::SUCCESS) == 0) return result;
 
     // todo: check that the player has use ability
@@ -263,7 +270,16 @@ InteractionResult GameMode_useItemOn(GameMode* self, ItemStack& item, const Bloc
     const Block& renderBlock = blockToUse->getRenderBlock();
 
     if (self->_canUseBlock(renderBlock)) {
-		Log::Info("Can use block");
+        bool isInCreative = false;
+
+        if (isInCreative) {
+			Log::Info("Todo handle Using block in creative mode");
+            return result;
+        }
+        else {
+            //Log::Info("Calling item::useOn {}", item);
+            result->mResult = item.useOn(self->mPlayer, at.x, at.y, at.z, face, hit).mResult;
+        }
     }
 
     return result;
@@ -294,7 +310,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
         // This lambda gets called whenever GameMode::useItemOn is called within the 2nd lambda
         [&transaction, &self, containerId](Container &container, unsigned int slot, const ItemStack &oldStack, const ItemStack &newStack)
         {
-            Log::Info("Top bit");
+            //Log::Info("Top bit");
             InventorySource source(InventorySourceType::ContainerInventory, containerId, InventorySource::InventorySourceFlags::NoFlag);
             InventoryAction action(source, slot, oldStack, newStack);
 
@@ -304,7 +320,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
         // This lambda is the first to get called
         [&transaction, &self, pos, face, &result, &stack, slot]()
         {
-			Log::Info("Bottom bit");
+			//Log::Info("Bottom bit");
             Player &player = self.mPlayer;
             ILevel &level = *player.mLevel;
 
@@ -354,10 +370,10 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
                 {
                     // IMPORTANT WILL BREAK: GameMode::_sendUseItemOnEvents uses Player::getSelectedItem oof.
                     // IDA detects it doesn't actually use it tho?
-					Log::Info("Send self.useItemOn");
+					//Log::Info("Send self.useItemOn");
                     //result = self.useItemOn(stackCopy, pos, face, hitResult.mPos, nullptr);
-					result = GameMode_useItemOn(&self, stackCopy, pos, face, hitResult.mPos, nullptr);
-					Log::Info("self.useItemOn Result: {}", result.mResult);
+					GameMode_useItemOn(&self, &result, stackCopy, pos, face, hitResult.mPos, nullptr);
+					//Log::Info("self.useItemOn Result: {}", result.mResult);
                 }
             }
 
@@ -372,7 +388,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             // Block placement timings
             if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0)
             {
-                Log::Info("Test");
+                //Log::Info("Test");
                 self.mBuildContext.mLastBuiltBlockPosition = calculatedPlacePos;
 
                 // Seems to get reset often enogu to be false each item use.
@@ -390,7 +406,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             }
         });
 
-    Log::Info("InteractResult: {}", result.mResult);
+    //Log::Info("InteractResult: {}", result.mResult);
 
     if (player.isClientSide())
     {
@@ -401,6 +417,8 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
 }
 
 // Modded version of GameMode::buildBlock that supports offhand items
+// note: the game only seems to call this on the client?
+// I wasn't able to see it called on the server when hooking it and logging the caller
 bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSimTick)
 {
     
@@ -416,7 +434,6 @@ bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSi
 
     Log::Info("mainhand {}", mainHandItem);
     bool usedMainhand = tryUseItem(*self, mainHandItem, player, inv, playerInv.mSelected, ContainerID::CONTAINER_ID_INVENTORY, *pos, face, isSimTick);
-    //bool usedMainhand = false;
     bool usedOffhand = false;
 
     if (!usedMainhand)
@@ -426,6 +443,45 @@ bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSi
     }
 
     return usedMainhand || usedOffhand;
+}
+
+enum InventoryTransactionError : uint64_t {
+    Unknown0 = 0,
+    Success = 1,
+    Unknown2 = 2,
+    ProbablyError = 3,
+
+
+    StateMismatch = 7
+};
+
+SafetyHookInline _ItemUseInventoryTransaction_handle;
+
+InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTransaction* self, Player& player, bool isSenderAuthority) {
+	// todo: game checks if player is dead, if so returns StateMismatch
+
+	Level& level = *player.getLevel()->asLevel();
+	bool isClientSide = level.isClientSide;
+    BlockPalette& blockPalette = level.getBlockPalette();
+
+    ItemStack stack = ItemStack::fromDescriptor(self->mItem, blockPalette, isClientSide);
+    Log::Info("ItemUseInventoryTransaction_handle stack {}", stack);
+
+    PlayerInventory& playerInv = *player.playerInventory;
+    Inventory& inv = *playerInv.mInventory.get();
+    const ItemStack& mainHandItem = playerInv.getSelectedItem();
+    ActorEquipmentComponent* equipment = player.tryGetComponent<ActorEquipmentComponent>();
+    const ItemStack& offHandItem = equipment->mHand->mItems[1];
+
+    // This could probably be more verbose in checking, but the logic is if the two stacks are the same, it was probably the mainhand?
+    // There probably is some weird edgecase around this
+    bool usedMainhand = stack.mItem == mainHandItem.mItem;
+    const ItemStack& stackToUse = usedMainhand ? mainHandItem : offHandItem;
+
+    Log::Info("usedStack {}", stackToUse);
+    
+
+    return InventoryTransactionError::Success;
 }
 
 // Ran when the mod is loaded into the game by AmethystRuntime
@@ -439,7 +495,7 @@ ModFunction void Initialize(AmethystContext &ctx)
     // hooks.RegisterFunction<&SurvivalMode_useItemOn>("40 53 48 83 EC ? 80 B9 ? ? ? ? ? 48 8B DA 74 ? 80 3D");
     // hooks.CreateHook<&SurvivalMode_useItemOn>(_SurvivalMode_useItemOn, &SurvivalMode_useItemOn);
 
-    Log::Info("PlayerInv offset: {}", offsetof(Player, playerInventory));
+    //Log::Info("PlayerInv offset: {}", offsetof(Player, playerInventory));
 
     ItemUseInventoryTransaction_ctor = (void *)SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F");
     NetworkItemStackDescriptor_ctor = (void *)SigScan("48 89 5C 24 ? 55 56 57 41 56 41 57 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 48 8B FA 48 8B F1 48 89 4C 24 ? 0F B6 5A");
@@ -454,4 +510,7 @@ ModFunction void Initialize(AmethystContext &ctx)
 
     hooks.RegisterFunction<&GameMode_useItemOn>("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 4D 8B E1 49 8B F0 4C 8B EA");
 	hooks.CreateHook<&GameMode_useItemOn>(_GameMode_useItemOn, &GameMode_useItemOn);
+
+    hooks.RegisterFunction<&ItemUseInventoryTransaction_handle>("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 0F 29 B4 24 ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 0F B6 E0");
+	hooks.CreateHook<&ItemUseInventoryTransaction_handle>(_ItemUseInventoryTransaction_handle, &ItemUseInventoryTransaction_handle);
 }
