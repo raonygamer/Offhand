@@ -11,24 +11,3 @@
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     return TRUE;
 }
-
-template <>
-struct std::formatter<ItemStack> {
-    constexpr auto parse(std::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const ItemStack& stack, FormatContext& ctx) const
-    {
-        if (stack.isNull()) {
-            return std::format_to(ctx.out(), "ItemStack(Null)");
-        }
-
-        return std::format_to(ctx.out(), "ItemStack(ID: {}, Count: {})",
-            stack.getItem()->mFullName.getString(),
-            stack.mCount
-        );
-    }
-};
