@@ -94,32 +94,56 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
 
 	BlockLegacy* blockToUse = nullptr;
 
-    //if (!isSneakDown
-    //    || ItemStackBase::hasTag(item, &VanillaItemTags::Hatchet)
-    //    || ItemStackBase::hasTag(item, &VanillaItemTags::Shovel)
-    //    || ItemStackBase::hasTag(item, &VanillaItemTags::Hoe)
-    //    || ItemStackBase::isInstance(item, &VanillaItemNames::HoneyComb, 0)
-    //    || (v29 = (*(*this->mPlayer + 664i64))(this->mPlayer), !ItemStackBase::operator bool(v29)))
-    // todo: handle all these cases
-    if (!isSneakDown) {
-        bool isAir = true;
-		blockToUse = block.mLegacyBlock;
 
-        if (!isAir) {
-            Log::Info("Non air blocks not currently handled");
+    bool itemCanInteractWithBlock = item.hasTag("minecraft:is_axe")
+        || item.hasTag("minecraft:is_shovel")
+        || item.hasTag("minecraft:is_hoe")
+        || item.isInstance("minecraft:honeycomb", false);
+
+    if (!isSneakDown || itemCanInteractWithBlock || !item) {
+		blockToUse = block.mLegacyBlock;
+        bool isAir = blockToUse->isAir();
+
+        if (!isAir && block.use(self->mPlayer, at, face, hit)) {
+            Log::Info("block.use() currently not implemented");
             return result;
         }
-
-        Log::Info("clicked air");
     }
-
+     
     if (!item) {
         Log::Info("Todo handle !item scenario");
 		return result;
     }
 
     if (!item.isBlock()) {
-		Log::Info("Todo handle !item.isBlock() scenario");
+        self->mBuildContext.mLastBuildBlockWasSnappable = blockLegacy.isSnappableBlock();
+
+        bool isCreative = false;
+		InteractionResult useResult;
+
+        if (isCreative) {
+            Log::Info("todo handle creative");
+        }
+        else {
+            useResult.mResult = item.useOn(self->mPlayer, at.x, at.y, at.z, face, hit).mResult;
+            Log::Info("[item.isBlock] item.useOn in return {}", useResult.mResult);
+        }
+
+        if ((useResult.mResult & (int)InteractionResult::Result::SUCCESS) != 0) {
+            
+            result->mResult = useResult.mResult; 
+            return result;
+		}
+
+        if (item) {
+            Log::Info("Player::setSelectedItem()");
+        }
+        else {
+            Log::Info("PlayerInventory::clearSlot()");
+        }
+
+        Log::Info("GameMode::_sendPlayerInteractWithBlockAfterEvent");
+
         return result;
     }
 
@@ -263,14 +287,19 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             }
         });
 
-    //Log::Info("InteractResult: {}", result.mResult);
+    Log::Info("[tryUseItem] InteractResult: {}", result.mResult);
 
     if (player.isClientSide())
     {
         player.sendComplexInventoryTransaction(std::move(transaction));
     }
 
-    return true;
+    if (result.mResult & (int)InteractionResult::Result::SUCCESS)
+    {
+        return true;
+	}
+
+    return false;
 }
 
 // Modded version of GameMode::buildBlock that supports offhand items
@@ -295,8 +324,11 @@ bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSi
 
     if (!usedMainhand)
     {
-        Log::Info("offhand {}", offHandItem);
+        Log::Info("[Attempting to use offhand] {}", offHandItem);
         usedOffhand = tryUseItem(*self, offHandItem, player, *equipment->mHand, 1, ContainerID::CONTAINER_ID_OFFHAND, *pos, face, isSimTick);
+    }
+    else {
+        Log::Info("[NOT attempting to use offhand]");
     }
 
     return usedMainhand || usedOffhand;
@@ -336,7 +368,7 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
     const ItemStack& stackToUse = usedMainhand ? mainHandItem : offHandItem;
     Container* containerToUse = usedMainhand ? &inv : (Container*)equipment->mHand.get();
 
-    Log::Info("stackToUse is offhand: {}", stackToUse.isOffhandItem());
+    //Log::Info("ItemUseInventoryTransaction_handle stackToUse is offhand: {}", stackToUse.isOffhandItem());
 
     bool itemsMatch = true; // InventoryTransaction::checkTransactionItemsMatch
 	bool slotsMatch = true; // self->mSlot == playerInv.mSelected; <- to check properly probs need to switch between offhand and inv slots

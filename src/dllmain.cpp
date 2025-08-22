@@ -71,7 +71,7 @@ ModFunction void Initialize(AmethystContext &ctx)
     Amethyst::GetEventBus().AddListener<RegisterItemsEvent>(&OnRegisterItems);
 	Amethyst::GetEventBus().AddListener<RegisterBlocksEvent>(&OnRegisterBlocks);
 
-    Amethyst::GetContext().mFeatures->enableInputSystem = true;
+    //Amethyst::GetContext().mFeatures->enableInputSystem = true;
     Amethyst::EventBus& events = Amethyst::GetEventBus();
     Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 

@@ -14,7 +14,7 @@ set_version(string.format("%d.%d.%d", major, minor, patch))
 -- RelWithDebInfo flags
 add_cxxflags("/O2", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
 add_ldflags("/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
-includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI"))
+includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI")) 
 
 -- Use NASM for generated asm thunks
 toolchain("nasm")
@@ -22,7 +22,7 @@ toolchain("nasm")
     on_load(function (toolchain)
         toolchain:set_tools("as", "nasm")
     end)
-toolchain_end()
+toolchain_end() 
 
 -- Project dependencies
 package("libhat")

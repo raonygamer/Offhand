@@ -7,6 +7,7 @@
 #include <minecraft/src-client/common/client/player/LocalPlayer.hpp>
 #include <minecraft/src/common/network/ServerNetworkHandler.hpp>
 #include <minecraft/src/common/server/ServerPlayer.hpp>
+#include <amethyst/Formatting.hpp>
 
 class SwapOffhandPacket : public Packet {
 public:
@@ -52,7 +53,15 @@ public:
             return;
 		}
 
-        Log::Info("pos {}", *serverPlayer->getPosition());
+		const PlayerInventory& inventory = serverPlayer->getSupplies();
+		const ItemStack& mainhandStack = inventory.getSelectedItem();
+
+        ActorEquipmentComponent& equipment = *serverPlayer->tryGetComponent<ActorEquipmentComponent>();
+        const ItemStack& offhandStack = equipment.mHand->mItems[1];
+
+		Log::Info("mainhand: {}, offhand: {}", mainhandStack, offhandStack);
+
+        //Log::Info("pos {}", *serverPlayer->getPosition());
     }
 };
 
@@ -80,7 +89,9 @@ std::shared_ptr<Packet> createPacket(MinecraftPacketIds id) {
 }
 
 void RegisterKeyListener(RegisterInputsEvent& ev) {
-    ev.inputManager.RegisterNewInput("swap_offhand", { 70 }, false);
+    Log::Info("Registering swap offhand key");
+
+    ev.inputManager.RegisterNewInput("swap_offhand", { 70 }, true);
 
     ev.inputManager.AddButtonDownHandler("swap_offhand", [](FocusImpact focus, IClientInstance& client) {
         LocalPlayer& player = *client.getLocalPlayer();
@@ -96,12 +107,10 @@ void RegisterKeyListener(RegisterInputsEvent& ev) {
 }
 
 void RegisterSwapOffhandKey() {
-	Log::Info("Registering swap offhand key");
-
     Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 	Amethyst::EventBus& events = Amethyst::GetEventBus();
 
-	events.AddListener<RegisterInputsEvent>(&RegisterKeyListener);
+	//events.AddListener<RegisterInputsEvent>(&RegisterKeyListener);
 
     hooks.RegisterFunction<&MinecraftPackets::createPacket>("40 53 48 83 EC ? 45 33 C0 48 8B D9 FF CA 81 FA");
     hooks.CreateHook<&MinecraftPackets::createPacket>(_createPacket, &createPacket);
