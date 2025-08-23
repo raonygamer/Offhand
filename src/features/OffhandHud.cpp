@@ -3,8 +3,15 @@
 #include <minecraft/src-client/common/client/gui/UIResolvedDef.hpp>
 #include <minecraft/src-client/common/client/gui/gui/UIControl.hpp>
 #include <minecraft/src-client/common/client/gui/controls/CustomRenderComponent.hpp>
+#include <minecraft/src-client/common/client/gui/controls/renderers/MinecraftUICustomRenderer.hpp>
 #include <minecraft/src-deps/core/math/Color.hpp>
 #include <amethyst/Formatting.hpp>
+#include <minecraft/src-client/common/client/player/LocalPlayer.hpp>
+#include <minecraft/src/common/world/entity/components/ActorEquipmentComponent.hpp>
+#include <amethyst/Formatting.hpp>
+#include <minecraft/src-client/common/client/renderer/BaseActorRenderContext.hpp>
+#include <minecraft/src-client/common/client/renderer/screen/ScreenContext.hpp>
+#include <minecraft/src-client/common/client/renderer/actor/ItemRenderer.hpp>
 
 class UIResolvedDef;
 class UIControl;
@@ -12,30 +19,45 @@ class UIControlFactory;
 
 SafetyHookInline _UIControlFactory_populateCustomRenderComponent;
 
-class TestRenderer : public UICustomRenderer {
+static HashedString flushString(0xA99285D21E94FC80, "ui_flush");
+
+class TestRenderer : public MinecraftUICustomRenderer {
 public:
-	TestRenderer() : UICustomRenderer() {};
+	TestRenderer() : MinecraftUICustomRenderer() {};
 
 	virtual std::shared_ptr<UICustomRenderer> clone() const override {
 		return std::make_shared<TestRenderer>();
 	}
 
-	virtual void frameUpdate(UIFrameUpdateContext& frameCtx, UIControl& control) {
+	virtual void render(MinecraftUIRenderContext& ctx, IClientInstance& client, UIControl& owner, int32_t pass, RectangleArea& renderAABB) override {
+		LocalPlayer* player = client.getLocalPlayer();
+		if (!player) return;
 
-	};
+		ActorEquipmentComponent* equipment = player->tryGetComponent<ActorEquipmentComponent>();
+		if (!equipment || equipment->mHand->mItems.size() <= 1) return;
 
-	virtual void render(UIRenderContext& renderCtx, IClientInstance& client, UIControl& control, int32_t unkn, RectangleArea& area) {
-		// calls the virtual that comes after frameUpdate
-		MinecraftUIRenderContext& ctx = (MinecraftUIRenderContext&)(renderCtx);
+		const ItemStack& offhand = equipment->mHand->mItems[1];
+		if (offhand.isNull()) return;
 
-		RectangleArea newArea{ 0.0f, 20.0f, 0.0f, 20.0f };
+		glm::tvec2<float> pos = owner.getPosition();
+		renderAABB = RectangleArea(pos.x + 5.0f, pos.x + 22.0f, pos.y + 12.0f, pos.y + 22.0f);
 
-		ctx.drawRectangle(area, mce::Color::WHITE, 1.0f, 1);
+		BaseActorRenderContext renderCtx(ctx.mScreenContext, &client, client.minecraftGame);
+		renderCtx.itemRenderer->renderGuiItemNew(&renderCtx, &offhand, 0, pos.x + 2.0f, pos.y + 6.0f, false, 1.0f, mPropagatedAlpha, 1.0f);
+		ctx.flushImages(mce::Color::WHITE, 1.0f, flushString);
 
-		Log::Info("area {}", area);
-		area = newArea;
+		TextMeasureData textData;
+		memset(&textData, 0, sizeof(TextMeasureData));
+		textData.fontSize = 1.0f;
 
-		//Log::Info("render");
+		CaretMeasureData caretData;
+		memset(&caretData, 1, sizeof(CaretMeasureData));
+
+		std::string text = std::format("{}", offhand.mCount);
+
+		ctx.
+
+		ctx.drawDebugText(&renderAABB, &text, &mce::Color::WHITE, 1.0f, ui::Right, &textData, &caretData);
 	}
 };
 

@@ -1,12 +1,29 @@
-import { createFile, Custom, UiFile, createMinecraftElement, Panel } from "Regolith-Generators"
+import { createFile, UiFile, createMinecraftElement, Panel, GetRef, Variable, Size2D, ImageProps, Image, Custom } from "Regolith-Generators"
 
 const hud_screen = new UiFile("hud");
 
-hud_screen.addControl("offhand_renderer", 
-    <Custom renderer="offhand_hud_renderer" size={[20, 20]} anchors="center" />
+const HotbarSlotImage = GetRef<{ "$hotbar_slot_image_size": Variable<Size2D> } & ImageProps>("hud", "hotbar_slot_image");
+
+hud_screen.addControl("offhand_renderer",
+    <Image 
+        texture="textures/ui/hotbar_0" 
+        layer={1}
+        size="$hotbar_renderer_size"
+        offset={[-105, -1.5]}
+        anchors="bottom_middle"
+        defaults={{
+            "$hotbar_renderer_size": [20, 22],
+        }}
+    >
+        <Custom
+            renderer="offhand_hud_renderer"
+            size="$hotbar_renderer_size"
+            layer={2}
+        />
+    </Image>
 )
 
-hud_screen.addControl("root_panel", 
+hud_screen.addControl("root_panel",
     <Panel modifications={[
         {
             operation: "insert_front",
