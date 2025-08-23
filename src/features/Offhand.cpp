@@ -94,7 +94,6 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
 
 	BlockLegacy* blockToUse = nullptr;
 
-
     bool itemCanInteractWithBlock = item.hasTag("minecraft:is_axe")
         || item.hasTag("minecraft:is_shovel")
         || item.hasTag("minecraft:is_hoe")

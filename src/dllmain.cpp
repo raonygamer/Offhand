@@ -28,6 +28,7 @@
 #include <amethyst/runtime/events/InputEvents.hpp>
 #include "features/SwapOffhandKey.hpp"
 #include "features/Offhand.hpp"
+#include "features/OffhandHud.hpp"
 
 void OnRegisterItems(RegisterItemsEvent &event)
 {
@@ -80,4 +81,5 @@ ModFunction void Initialize(AmethystContext &ctx)
 
     RegisterSwapOffhandKey();
     RegisterOffhandHooks();
+    RegisterOffhandHud();
 }

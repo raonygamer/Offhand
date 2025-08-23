@@ -1,0 +1,12 @@
+{
+    "imports": {
+        "Regolith-Generators": "../../../../../../../Regolith-Generators/api/mod.ts",
+        "@/RP/": "../../RP/",
+        "@/Generators/": "../generated/"
+    },
+    "compilerOptions": {
+        "jsx": "react",
+        "jsxFactory": "createMinecraftElement",
+        "jsxFragmentFactory": "createMinecraftFragment"
+    }
+}  

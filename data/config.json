@@ -1,0 +1,32 @@
+{
+	"$schema": "https://raw.githubusercontent.com/Bedrock-OSS/regolith-schemas/main/config/v1.4.json",
+	"author": "FrederoxDev",
+	"name": "offhand",
+	"packs": {
+		"resourcePack": "./packs/RP"
+	},
+	"regolith": {
+		"dataPath": "./packs/data",
+		"filterDefinitions": {
+			"regolith_generators": {
+				"runWith": "deno",
+				"script": "../../../../Regolith-Generators/regolith_generators/src/index.ts"
+			}
+		},
+		"formatVersion": "1.4.0",
+		"profiles": {
+			"default": {
+				"export": {
+					"build": "standard",
+					"readOnly": false,
+					"target": "development"
+				},
+				"filters": [
+					{
+						"filter": "regolith_generators"
+					}
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,29 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "Offhand RP",
+        "description": "By FrederoxDev",
+        "uuid": "77825879-3a4c-443f-91ad-858200180cda",
+        "version": [
+            1,
+            0,
+            0
+        ],
+        "min_engine_version": [
+            1,
+            21,
+            0
+        ]
+    },
+    "modules": [
+        {
+            "type": "resources",
+            "uuid": "f2345115-8554-4f08-8e4e-392e8dc132b6",
+            "version": [
+                1,
+                0,
+                0
+            ]
+        }
+    ]
+}
