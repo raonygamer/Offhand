@@ -41,10 +41,7 @@ public:
         SwapOffhandPacket& packet = *(SwapOffhandPacket*)_packet.get();
         ServerNetworkHandler& serverNetwork = (ServerNetworkHandler&)netEvent;
 
-        Log::Info("handle!");
-
         uintptr_t** address = *(uintptr_t***)&serverNetwork;
-		Log::Info("ServerNetworkHandler address: 0x{:x}", (uintptr_t)address - GetMinecraftBaseAddress());
 		
         ServerPlayer* serverPlayer = serverNetwork._getServerPlayer(networkId, SubClientId::PrimaryClient);
 
@@ -89,28 +86,50 @@ std::shared_ptr<Packet> createPacket(MinecraftPacketIds id) {
 }
 
 void RegisterKeyListener(RegisterInputsEvent& ev) {
-    Log::Info("Registering swap offhand key");
+	Amethyst::InputManager& inputManager = ev.inputManager;
+	//Amethyst::InputAction& upKey = inputManager.GetVanillaInput("up");
 
-    ev.inputManager.RegisterNewInput("swap_offhand", { 70 }, true);
+ //   upKey.addButtonDownHandler([](FocusImpact focus, IClientInstance& client) {
+ //       Log::Info("button.up pressed!");       
+ //   });
 
-    ev.inputManager.AddButtonDownHandler("swap_offhand", [](FocusImpact focus, IClientInstance& client) {
-        LocalPlayer& player = *client.getLocalPlayer();
-        ILevel& level = *player.getLevel();
+ //   upKey.addButtonUpHandler([](FocusImpact focus, IClientInstance& client) {
+ //       Log::Info("button.up released!");
+	//});
 
-        PacketSender& packetSender = *level.getPacketSender();
+	//Log::Info("Registered input!! {}", upKey.getNameHash());
 
-        SwapOffhandPacket swapOffhandPacket;
-        packetSender.sendToServer(swapOffhandPacket);
-        Log::Info("Sent SwapOffhandPacket to server");
+    // To register it in other contexts, just | them together
+	// i.e. Amethyst::KeybindContext::Gameplay | Amethyst::KeybindContext::Screen
 
-    }, true);
+
+	Amethyst::InputAction& swapOffhandKey = inputManager.RegisterNewInput("swap_input", { 'F' }, true, Amethyst::KeybindContext::Gameplay);
+
+    swapOffhandKey.addButtonUpHandler([](FocusImpact focus, IClientInstance& client) {
+        Log::Info("Swap offhand!");
+    });
+
+
+    //ev.inputManager.RegisterNewInput("swap_offhand", { 70 }, true);
+
+    //ev.inputManager.AddButtonDownHandler("swap_offhand", [](FocusImpact focus, IClientInstance& client) {
+    //    LocalPlayer& player = *client.getLocalPlayer();
+    //    ILevel& level = *player.getLevel();
+
+    //    PacketSender& packetSender = *level.getPacketSender();
+
+    //    SwapOffhandPacket swapOffhandPacket;
+    //    packetSender.sendToServer(swapOffhandPacket);
+    //    Log::Info("Sent SwapOffhandPacket to server");
+
+    //}, true);
 }
 
 void RegisterSwapOffhandKey() {
     Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 	Amethyst::EventBus& events = Amethyst::GetEventBus();
 
-	//events.AddListener<RegisterInputsEvent>(&RegisterKeyListener);
+	events.AddListener<RegisterInputsEvent>(&RegisterKeyListener);
 
     hooks.RegisterFunction<&MinecraftPackets::createPacket>("40 53 48 83 EC ? 45 33 C0 48 8B D9 FF CA 81 FA");
     hooks.CreateHook<&MinecraftPackets::createPacket>(_createPacket, &createPacket);
