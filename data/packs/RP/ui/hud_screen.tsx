@@ -6,13 +6,13 @@ const HotbarSlotImage = GetRef<{ "$hotbar_slot_image_size": Variable<Size2D> } &
 
 hud_screen.addControl("offhand_renderer",
     <Image 
-        texture="textures/ui/hotbar_0" 
+        texture="textures/ui/offhand_slot" 
         layer={1}
         size="$hotbar_renderer_size"
-        offset={[-105, -1.5]}
+        offset={[-110, -1.5]}
         anchors="bottom_middle"
         defaults={{
-            "$hotbar_renderer_size": [20, 22],
+            "$hotbar_renderer_size": [22, 22],
         }}
     >
         <Custom

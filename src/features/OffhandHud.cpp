@@ -33,7 +33,7 @@ public:
 
 	virtual void render(MinecraftUIRenderContext& ctx, IClientInstance& client, UIControl& owner, int32_t pass, RectangleArea& renderAABB) override {
 		LocalPlayer* player = client.getLocalPlayer();
-		if (!player) return;
+		if (!player || mPropagatedAlpha < 0.5) return;
 
 		ActorEquipmentComponent* equipment = player->tryGetComponent<ActorEquipmentComponent>();
 		if (!equipment || equipment->mHand->mItems.size() <= 1) return;
@@ -41,43 +41,39 @@ public:
 		const ItemStack& offhand = equipment->mHand->mItems[1];
 		if (offhand.isNull()) return;
 
+		// This disables the item visual from bobbing whenever the offhand stack changes in content
+		ItemStack offhandCopy = offhand;
+		offhandCopy.mShowPickup = false;
+
 		glm::tvec2<float> pos = owner.getPosition();
 
 		BaseActorRenderContext renderCtx(ctx.mScreenContext, &client, client.minecraftGame);
-		renderCtx.itemRenderer->renderGuiItemNew(&renderCtx, &offhand, 0, pos.x + 2.0f, pos.y + 6.0f, false, 1.0f, mPropagatedAlpha, 1.0f);
-		ctx.flushImages(mce::Color::WHITE, 1.0f, flushString);
+		int yOffset = offhand.getItem()->getIconYOffset();
 
-		//FontHandle fakeHandle = FontHandle();
+		renderCtx.itemRenderer->renderGuiItemNew(&renderCtx, &offhandCopy, 0, pos.x + 3.0f, pos.y - yOffset + 3.0f, false, 1.0f, mPropagatedAlpha, 1.0f);
+		mce::Color color(1.0f, 1.0f, 1.0f, mPropagatedAlpha);
+		ctx.flushImages(color, 1.0f, flushString);
 
-		//TextMeasureData textData;
-		//memset(&textData, 0, sizeof(TextMeasureData));
-		//textData.fontSize = 1.0f;
+		if (offhand.mCount == 1) return;
 
-		//CaretMeasureData caretData;
-		//memset(&caretData, 1, sizeof(CaretMeasureData));
+		std::string text = std::format("{}", offhand.mCount);
+		float lineLength = ctx.getLineLength(*client.minecraftGame->mFontHandle.mDefaultFont, text, 1.0f, false);
 
-		//Bedrock::NonOwnerPointer<const FontHandle> handle = client.minecraftGame->mFontHandle;
-		//
-		//std::string text = std::format("{}", offhand.mCount);
-		//MeasureResult measurement = ctx.mMeasureStrategy.measureText(handle, text, 22.0f, 22.0f, textData, caretData);
+		renderAABB._x0 = pos.x + (20.0f - lineLength);
+		renderAABB._x1 = pos.x + 22.0f;
+		renderAABB._y0 = pos.y + 11.0f;
+		renderAABB._y1 = pos.y + 22.0f;
 
-		//Log::Info("measurement: ({}, {})", measurement.mSize.x, measurement.mSize.y);
+		TextMeasureData textData;
+		memset(&textData, 0, sizeof(TextMeasureData));
+		textData.fontSize = 1.0f;
+		textData.renderShadow = true;
 
-		//Log::Info("font id: {}", client.minecraftGame->mFontHandle.mFontId);
+		CaretMeasureData caretData;
+		memset(&caretData, 1, sizeof(CaretMeasureData));
 
-		//std::string text = std::format("{}", offhand.mCount);
-
-		//ctx.
-
-		//ctx.drawDebugText(&renderAABB, &text, &mce::Color::WHITE, 1.0f, ui::Right, &textData, &caretData);
-
-		//gsl::not_null<Bedrock::NonOwnerPointer<const FontHandle>> fakeHandle = gsl::not_null<Bedrock::NonOwnerPointer<const FontHandle>>();
-
-		//gsl::not_null<Bedrock::NonOwnerPointer<const FontHandle>> fontHandle = gsl::not_null<Bedrock::NonOwnerPointer<const FontHandle>>(client.minecraftGame->mFontHandle);
-
-		//std::string text = std::format("{}", offhand.mCount);
-		//MeasureResult measurement = ctx.mMeasureStrategy.measureText(client.minecraftGame->mFontHandle, text, 22.0f, 22.0f, textData, caretData);
-		//Log::Info("measurement: ({}, {})", measurement.mSize.x, measurement.mSize.y);
+		ctx.drawDebugText(&renderAABB, &text, &mce::Color::WHITE, 1.0f, ui::Right, &textData, &caretData);
+		ctx.flushText(0.0f);
 	}
 };
 

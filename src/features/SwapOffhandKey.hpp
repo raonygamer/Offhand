@@ -26,6 +26,7 @@ public:
 
     virtual Bedrock::Result<void, std::error_code> read(ReadOnlyBinaryStream& stream) override {
         Log::Info("[SwapOffhandPacket::read]");
+        stream.getUnsignedVarInt32();
         return Bedrock::Result<void, std::error_code>();
     }
 
@@ -52,13 +53,29 @@ public:
 
 		const PlayerInventory& inventory = serverPlayer->getSupplies();
 		const ItemStack& mainhandStack = inventory.getSelectedItem();
+		ItemStack mainhandCopy = mainhandStack;
 
         ActorEquipmentComponent& equipment = *serverPlayer->tryGetComponent<ActorEquipmentComponent>();
         const ItemStack& offhandStack = equipment.mHand->mItems[1];
+        ItemStack offhandCopy = offhandStack;
 
-		Log::Info("mainhand: {}, offhand: {}", mainhandStack, offhandStack);
+        inventory.mInventory->createTransactionContext(
+            [](Container& container, int slot, ItemStack const& from, ItemStack const& to) {
+                
+            },
+            [&inventory, offhandCopy]() {
+                inventory.mInventory->setItem(inventory.mSelected, offhandCopy);
+            }
+        );
 
-        //Log::Info("pos {}", *serverPlayer->getPosition());
+        equipment.mHand->createTransactionContext(
+            [](Container& container, int slot, ItemStack const& from, ItemStack const& to) {
+
+            },
+            [&equipment, mainhandCopy]() {
+                equipment.mHand->setItem(1, mainhandCopy);
+            }
+        );
     }
 };
 
@@ -70,7 +87,7 @@ std::shared_ptr<Packet> createPacket(MinecraftPacketIds id) {
     //Log::Info("createPacket {}", (int)id);
 
     // Vanilla packets.
-    if (id <= MinecraftPacketIds::EndId) {
+    if (id < MinecraftPacketIds::EndId) {
         return _createPacket.call<std::shared_ptr<Packet>>(id);
     }
 
@@ -81,48 +98,50 @@ std::shared_ptr<Packet> createPacket(MinecraftPacketIds id) {
         shared->mHandler = &swapOffhandPacketHandler;
         return shared;
     }
-
-    //Assert("Recieved packet with unknown id: {}", (int)id);
 }
 
 void RegisterKeyListener(RegisterInputsEvent& ev) {
 	Amethyst::InputManager& inputManager = ev.inputManager;
-	//Amethyst::InputAction& upKey = inputManager.GetVanillaInput("up");
-
- //   upKey.addButtonDownHandler([](FocusImpact focus, IClientInstance& client) {
- //       Log::Info("button.up pressed!");       
- //   });
-
- //   upKey.addButtonUpHandler([](FocusImpact focus, IClientInstance& client) {
- //       Log::Info("button.up released!");
-	//});
-
-	//Log::Info("Registered input!! {}", upKey.getNameHash());
-
-    // To register it in other contexts, just | them together
-	// i.e. Amethyst::KeybindContext::Gameplay | Amethyst::KeybindContext::Screen
-
-
 	Amethyst::InputAction& swapOffhandKey = inputManager.RegisterNewInput("swap_input", { 'F' }, true, Amethyst::KeybindContext::Gameplay);
 
-    swapOffhandKey.addButtonUpHandler([](FocusImpact focus, IClientInstance& client) {
-        Log::Info("Swap offhand!");
+    swapOffhandKey.addButtonDownHandler([](FocusImpact focus, IClientInstance& client) {
+        return; 
+
+        LocalPlayer& player = *client.getLocalPlayer();
+		ILevel& level = *player.getLevel();
+        PacketSender& packetSender = *level.getPacketSender();
+
+        SwapOffhandPacket swapOffhandPacket;
+        packetSender.sendToServer(swapOffhandPacket);
+		Log::Info("Sent SwapOffhandPacket to server");
+
+		// Swap items clientside for instant feedback
+        const PlayerInventory& inventory = player.getSupplies();
+        const ItemStack& mainhandStack = inventory.getSelectedItem();
+		ItemStack mainhandCopy = mainhandStack;
+
+        const ActorEquipmentComponent& equipment = *player.tryGetComponent<ActorEquipmentComponent>();
+        const ItemStack& offhandStack = equipment.mHand->mItems[1];
+		ItemStack offhandCopy = offhandStack;
+
+        inventory.mInventory->createTransactionContext(
+            [](Container& container, int slot, ItemStack const& from, ItemStack const& to) {
+
+            },
+            [&inventory, offhandCopy]() {
+                inventory.mInventory->setItem(inventory.mSelected, offhandCopy);
+            }
+        );
+
+        equipment.mHand->createTransactionContext(
+            [](Container& container, int slot, ItemStack const& from, ItemStack const& to) {
+
+            },
+            [&equipment, mainhandCopy]() {
+                equipment.mHand->setItem(1, mainhandCopy);
+            }
+        );
     });
-
-
-    //ev.inputManager.RegisterNewInput("swap_offhand", { 70 }, true);
-
-    //ev.inputManager.AddButtonDownHandler("swap_offhand", [](FocusImpact focus, IClientInstance& client) {
-    //    LocalPlayer& player = *client.getLocalPlayer();
-    //    ILevel& level = *player.getLevel();
-
-    //    PacketSender& packetSender = *level.getPacketSender();
-
-    //    SwapOffhandPacket swapOffhandPacket;
-    //    packetSender.sendToServer(swapOffhandPacket);
-    //    Log::Info("Sent SwapOffhandPacket to server");
-
-    //}, true);
 }
 
 void RegisterSwapOffhandKey() {
