@@ -9,6 +9,9 @@
 #include <minecraft/src/common/server/ServerPlayer.hpp>
 #include <amethyst/Formatting.hpp>
 #include <minecraft/src-deps/input/MouseDevice.hpp>
+#include <minecraft/src/common/world/entity/components/ActorEquipmentComponent.hpp>
+#include <minecraft/src/common/world/level/ILevel.hpp>
+#include <minecraft/src/common/world/actor/player/Inventory.hpp>
 
 class SwapOffhandPacket : public Packet {
 public:
