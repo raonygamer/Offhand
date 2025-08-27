@@ -125,8 +125,8 @@ void RegisterKeyListener(RegisterInputsEvent& ev) {
 		ILevel& level = *player.getLevel();
         PacketSender& packetSender = *level.getPacketSender();
 
-        SwapOffhandPacket* packet = new SwapOffhandPacket(); // intentionally leaked
-        packetSender.sendToServer(*packet);
+        SwapOffhandPacket packet = SwapOffhandPacket();
+        packetSender.sendToServer(packet);
 
 		// Swap items clientside for instant feedback
         const PlayerInventory& inventory = player.getSupplies();

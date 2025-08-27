@@ -13,6 +13,8 @@
 
 SafetyHookInline _ItemInHandRenderer_transformOffhandItem;
 
+float t = 0.0f;
+
 void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef& matrixStack) {
 	ClientInstance& client = *Amethyst::GetContext().mClientInstance;
 	LocalPlayer* player = client.getLocalPlayer();
@@ -22,26 +24,10 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 	if (!equipment || equipment->mHand->mItems.size() <= 1) return;
 	const ItemStack& offhand = equipment->mHand->mItems[1];
 
-	// todo: this shouldn't apply for "item" block items
-
 	if (offhand.isNull() || !offhand.isBlock() || offhand.getItem()->isBlockPlanterItem() || !self->_canTessellateAsBlockItem(offhand)) {
 		_ItemInHandRenderer_transformOffhandItem.call<void, ItemInHandRenderer*, MatrixStack::MatrixStackRef&>(self, matrixStack);
 		return;
 	}
-
-	//ResolvedItemIconInfo iconInfo = offhand.getItem()->getIconInfo(offhand, 0, false);
-	//TextureAtlasItem* atlasItem = ItemIconManager::getIcon(iconInfo);
-
-	//Log::Info("0x{:x}", (uint64_t)atlasItem);
-
-	//Log::Info("atlas {:s}", offhand.getItem()->mTextureAtlasFile);
-
-	//Log::Info("{}", atlasItem->mName);
-
-	//if (iconInfo.mIconType != ItemIconInfoType::LegacyBlock) {
-	//	_ItemInHandRenderer_transformOffhandItem.call<void, ItemInHandRenderer*, MatrixStack::MatrixStackRef&>(self, matrixStack);
-	//	return;
-	//}
 
 	float depth = -1.8f;   // depth
 	float side = -1.5f;   // left
@@ -49,7 +35,27 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 
 	// Apply translation
 	matrixStack->translate(side, height, depth);
-	matrixStack->rotate(45.f, 0.0f, 1.0f, 0.0f); // rotate
+	//matrixStack->rotate(glm::radians(45.f), 0.0f, 1.0f, 0.0f); // rotate
+
+	//t += 0.1f;
+	float attackAnim = player->getAttackAnim(t);
+
+	float sqrt = mce::Math::sqrt(attackAnim);
+	float rotSin = mce::Math::sin(attackAnim * attackAnim * 3.14159f);
+	float posSin = mce::Math::sin(sqrt * 3.14159f);
+
+	float sinAnimSqrtTimesPi = mce::Math::sin(sqrt * 3.14159f);
+
+	attackAnim = mce::Math::sqrt(attackAnim);
+	attackAnim = mce::Math::sin(attackAnim * 3.14159f + attackAnim * 3.14159f);
+
+	matrixStack->rotate(45.0f, 0.0f, 1.0f, 0.0f);
+	matrixStack->translate(sinAnimSqrtTimesPi * 0.3f, attackAnim * 0.4f, posSin * -0.4f);
+	matrixStack->rotate(sinAnimSqrtTimesPi * 70.f, 0.0f, 1.0f, 0.0f);
+	matrixStack->rotate(rotSin * -20.f, 0.0f, 0.0f, 1.0f);
+
+	//mce::Math::sqrt();
+	//matrixStack->rotate()
 }
 
 void RegisterOffhandRendering() {
