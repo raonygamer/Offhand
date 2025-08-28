@@ -3,13 +3,9 @@
 #include <minecraft/src-client/common/client/renderer/game/ItemInHandRenderer.hpp>
 #include <minecraft/src-client/common/client/renderer/BaseActorRenderContext.hpp>
 #include <minecraft/src-client/common/client/world/item/ItemIconManager.hpp>
-
-//SafetyHookInline _ItemInHandRenderer_renderOffhandItem;
-//
-//void ItemInHandRenderer_renderOffhandItem(ItemInHandRenderer* self, BaseActorRenderContext& ctx, Player& player, ItemContextFlags flags) {
-//	//Log::Info("ItemInHandRenderer_rednerOffhandItem {}", (int)flags);
-//	_ItemInHandRenderer_renderOffhandItem.call<void, ItemInHandRenderer*, BaseActorRenderContext&, Player&, ItemContextFlags>(self, ctx, player, flags);
-//}
+#include <minecraft/src/common/util/Timer.hpp>
+#include <minecraft/src/common/Minecraft.hpp>
+#include <minecraft/src-deps/core/math/Math.hpp>
 
 SafetyHookInline _ItemInHandRenderer_transformOffhandItem;
 
@@ -29,33 +25,49 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 		return;
 	}
 
+	float interpolatedTick = Amethyst::GetContext().mClientMinecraft->mSimTimer.mAlpha;
+
 	float depth = -1.8f;   // depth
 	float side = -1.5f;   // left
 	float height = -1.3f;  // down
 
+	float v12 = ((self->mHeight - self->mOldHeight) * interpolatedTick) + self->mOldHeight;
+	Log::Info("v12 {}", v12);
+
 	// Apply translation
-	matrixStack->translate(side, height, depth);
-	//matrixStack->rotate(glm::radians(45.f), 0.0f, 1.0f, 0.0f); // rotate
+	//
 
-	//t += 0.1f;
-	float attackAnim = player->getAttackAnim(t);
+	float attackAnim = player->getAttackAnim(interpolatedTick);
+	float alsoAttackAnim = attackAnim;
+	float attackAnimSqrt = mce::Math::sqrt(attackAnim);
+	float rotSin = mce::Math::sin((alsoAttackAnim * alsoAttackAnim) * 3.1415927);
+	float posSin = mce::Math::sin(alsoAttackAnim * 3.1415927);
+	float sinAnimSqrtTimesPi = mce::Math::sin(attackAnimSqrt * 3.1415927);
 
-	float sqrt = mce::Math::sqrt(attackAnim);
-	float rotSin = mce::Math::sin(attackAnim * attackAnim * 3.14159f);
-	float posSin = mce::Math::sin(sqrt * 3.14159f);
+	attackAnim = mce::Math::sqrt(alsoAttackAnim);
+	attackAnim = mce::Math::sin((*&attackAnim * 3.1415927) + (*&attackAnim * 3.1415927));
 
-	float sinAnimSqrtTimesPi = mce::Math::sin(sqrt * 3.14159f);
+	// original - mainhand
+	/*matrixStack->translate(sinAnimSqrtTimesPi * -0.30000001, attackAnim * 0.40000001, posSin * -0.40000001);
 
-	attackAnim = mce::Math::sqrt(attackAnim);
-	attackAnim = mce::Math::sin(attackAnim * 3.14159f + attackAnim * 3.14159f);
+	float v275 = (1.0 - v12) * 0.60000002;
+	Matrix::translate(v274, 0.64000005, -0.60000002 - v275, -0.71999997);
+
 
 	matrixStack->rotate(45.0f, 0.0f, 1.0f, 0.0f);
-	matrixStack->translate(sinAnimSqrtTimesPi * 0.3f, attackAnim * 0.4f, posSin * -0.4f);
-	matrixStack->rotate(sinAnimSqrtTimesPi * 70.f, 0.0f, 1.0f, 0.0f);
-	matrixStack->rotate(rotSin * -20.f, 0.0f, 0.0f, 1.0f);
 
-	//mce::Math::sqrt();
-	//matrixStack->rotate()
+	matrixStack->rotate(sinAnimSqrtTimesPi * 70.0f, 0.0f, 1.0f, 0.0f);
+	matrixStack->rotate(rotSin * -20.0f, 1.0f, 0.0f, 0.0f);*/
+
+	matrixStack->translate(sinAnimSqrtTimesPi * 0.30000001, attackAnim * 0.40000001, posSin * -0.40000001);
+
+	float v275 = (v12) * 0.60000002;
+	matrixStack->translate(side, height - v275, depth);
+
+	matrixStack->rotate(45.0f, 0.0f, 1.0f, 0.0f);
+
+	matrixStack->rotate(sinAnimSqrtTimesPi * 70.0f, 0.0f, -1.0f, 0.0f);
+	matrixStack->rotate(rotSin * -20.0f, -1.0f, 0.0f, 0.0f);
 }
 
 void RegisterOffhandRendering() {
