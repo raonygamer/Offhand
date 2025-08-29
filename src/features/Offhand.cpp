@@ -27,6 +27,7 @@
 #include <amethyst/runtime/events/InputEvents.hpp>
 #include <amethyst/runtime/HookManager.hpp>
 #include <amethyst/runtime/ModContext.hpp>
+#include "features/OffhandSwingComponent.hpp"
 
 extern "C" void *ItemUseInventoryTransaction_ctor = nullptr;
 extern "C" void *NetworkItemStackDescriptor_ctor = nullptr;
@@ -157,7 +158,6 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
             return result;
         }
         else {
-            //Log::Info("Calling item::useOn {}", item);
             result->mResult = item.useOn(self->mPlayer, at.x, at.y, at.z, face, hit).mResult;
         }
     }
@@ -165,7 +165,7 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
     return result;
 }
 
-bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Container &container, int slot, ContainerID containerId, const BlockPos &pos, FacingID face, bool isSimTick)
+bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Container &container, int slot, ContainerID containerId, const BlockPos &pos, FacingID face, bool isSimTick, bool isOffhand)
 {
     const Item *item = stack.getItem();
     bool mayUseItem = !stack.isNull() && (!isSimTick || (isSimTick && item->canUseOnSimTick()));
@@ -198,7 +198,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             transaction->mTransaction.addAction(action);
         },
         // This lambda is the first to get called
-        [&transaction, &self, pos, face, &result, &stack, slot]()
+        [&transaction, &self, pos, face, &result, &stack, slot, isOffhand]()
         {
 			//Log::Info("Bottom bit");
             Player &player = self.mPlayer;
@@ -281,7 +281,23 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
                 self.mLastBuildTime = std::chrono::steady_clock::now();
                 if ((result.mResult & (int)InteractionResult::Result::SWING) != 0)
                 {
-                    player.swing();
+                    if (!isOffhand) player.swing();
+                    else {
+                        if (!player.hasComponent<OffhandSwingComponent>()) {
+							player.addComponent<OffhandSwingComponent>();
+                        }
+
+						OffhandSwingComponent* swingComp = player.tryGetComponent<OffhandSwingComponent>();
+                        
+                        // player.swing() implemented using OffhandSwingComponent instead off mainhand.
+                        int currentSwingDuration = player.getCurrentSwingDuration();
+                        int time = swingComp->mOffhandSwingTime;
+
+                        if (!swingComp->mOffhandSwinging || time >= currentSwingDuration / 2 || time < 0) {
+							swingComp->mOffhandSwinging = true;
+							swingComp->mOffhandSwingTime = -1;
+                        }
+                    }
                 }
             }
         });
@@ -311,26 +327,15 @@ bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSi
     ILevel &level = *player.mLevel;
     PlayerInventory &playerInv = *player.playerInventory;
     Inventory &inv = *playerInv.mInventory.get();
-    Log::Info("GameMode::buildBlock {}", player.isClientSide() ? "client" : "server");
 
     const ItemStack &mainHandItem = playerInv.getSelectedItem();
     ActorEquipmentComponent *equipment = player.tryGetComponent<ActorEquipmentComponent>();
     const ItemStack &offHandItem = equipment->mHand->mItems[1];
 
-    Log::Info("mainhand {}", mainHandItem);
-    bool usedMainhand = tryUseItem(*self, mainHandItem, player, inv, playerInv.mSelected, ContainerID::CONTAINER_ID_INVENTORY, *pos, face, isSimTick);
-    bool usedOffhand = false;
-
-    if (!usedMainhand)
-    {
-        Log::Info("[Attempting to use offhand] {}", offHandItem);
-        usedOffhand = tryUseItem(*self, offHandItem, player, *equipment->mHand, 1, ContainerID::CONTAINER_ID_OFFHAND, *pos, face, isSimTick);
-    }
-    else {
-        Log::Info("[NOT attempting to use offhand]");
-    }
-
-    return usedMainhand || usedOffhand;
+    bool usedMainhand = tryUseItem(*self, mainHandItem, player, inv, playerInv.mSelected, ContainerID::CONTAINER_ID_INVENTORY, *pos, face, isSimTick, false);
+    if (usedMainhand) return true;
+    
+    return tryUseItem(*self, offHandItem, player, *equipment->mHand, 1, ContainerID::CONTAINER_ID_OFFHAND, *pos, face, isSimTick, true);
 }
 
 enum InventoryTransactionError : uint64_t {

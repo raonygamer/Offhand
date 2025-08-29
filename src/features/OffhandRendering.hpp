@@ -6,10 +6,18 @@
 #include <minecraft/src/common/util/Timer.hpp>
 #include <minecraft/src/common/Minecraft.hpp>
 #include <minecraft/src-deps/core/math/Math.hpp>
+#include "features/OffhandSwingComponent.hpp"
 
 SafetyHookInline _ItemInHandRenderer_transformOffhandItem;
 
-float t = 0.0f;
+float getOffhandAttackAnim(Player& player, float a) {
+	OffhandSwingComponent* offhandSwing = player.tryGetComponent<OffhandSwingComponent>();
+	if (!offhandSwing) return 0.0f;
+
+	float delta = offhandSwing->mOffhandAttackAnim - offhandSwing->mOffhandOAttackAnim;
+	if (delta < 0.0f) delta += 1.0f;
+	return (delta * a) + offhandSwing->mOffhandOAttackAnim;
+}
 
 void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef& matrixStack) {
 	ClientInstance& client = *Amethyst::GetContext().mClientInstance;
@@ -32,12 +40,10 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 	float height = -1.3f;  // down
 
 	float v12 = ((self->mHeight - self->mOldHeight) * interpolatedTick) + self->mOldHeight;
-	Log::Info("v12 {}", v12);
 
-	// Apply translation
-	//
+	//float attackAnim = player->getAttackAnim(interpolatedTick);
+	float attackAnim = getOffhandAttackAnim(*player, interpolatedTick);
 
-	float attackAnim = player->getAttackAnim(interpolatedTick);
 	float alsoAttackAnim = attackAnim;
 	float attackAnimSqrt = mce::Math::sqrt(attackAnim);
 	float rotSin = mce::Math::sin((alsoAttackAnim * alsoAttackAnim) * 3.1415927);
@@ -70,6 +76,51 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 	matrixStack->rotate(rotSin * -20.0f, -1.0f, 0.0f, 0.0f);
 }
 
+SafetyHookInline _Player_aiStep;
+
+void Player_aiStep(Player* self) {
+	_Player_aiStep.call<void, Player*>(self);
+
+	OffhandSwingComponent* offhandSwing = self->tryGetComponent<OffhandSwingComponent>();
+	if (!offhandSwing) return;
+
+	// pretty much just reimplements Mob::updateAttackAnim but for offhand
+	int currentSwingDuration = self->getCurrentSwingDuration();
+	int nextSwingTick = 0;
+
+	if (offhandSwing->mOffhandSwinging) {
+		nextSwingTick = offhandSwing->mOffhandSwingTime + 1;
+		offhandSwing->mOffhandSwingTime = nextSwingTick;
+
+		if (nextSwingTick < currentSwingDuration) {
+			goto LABEL6;
+		}
+
+		offhandSwing->mOffhandSwinging = false;
+	}
+
+	offhandSwing->mOffhandSwingTime = 0;
+
+LABEL6:
+	if (currentSwingDuration != 0) {
+		offhandSwing->mOffhandAttackAnim = (float)offhandSwing->mOffhandSwingTime / (float)currentSwingDuration;
+	}
+	else {
+		offhandSwing->mOffhandAttackAnim = 0.0f;
+	}
+}
+
+SafetyHookInline _Mob_baseTick;
+
+void Mob_baseTick(Mob* self) {
+	_Mob_baseTick.call<void, Mob*>(self);
+
+	OffhandSwingComponent* offhandSwing = self->tryGetComponent<OffhandSwingComponent>();
+	if (!offhandSwing) return;
+
+	offhandSwing->mOffhandOAttackAnim = offhandSwing->mOffhandAttackAnim;
+}
+
 void RegisterOffhandRendering() {
 	Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 
@@ -78,4 +129,10 @@ void RegisterOffhandRendering() {
 
 	hooks.RegisterFunction<&_transformOffhandItem>("40 53 48 83 EC ? 48 8B 02 0F 57 DB");
 	hooks.CreateHook<&_transformOffhandItem>(_ItemInHandRenderer_transformOffhandItem, &_transformOffhandItem);
+
+	hooks.RegisterFunction<&Player_aiStep>("48 8B C4 48 89 58 ? 48 89 70 ? 57 48 81 EC ? ? ? ? 0F 29 70 ? 0F 29 78 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 84 24 ? ? ? ? 48 8B F9");
+	hooks.CreateHook<&Player_aiStep>(_Player_aiStep, &Player_aiStep);
+
+	hooks.RegisterFunction<&Mob_baseTick>("48 89 5C 24 ? 56 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 8B 81");
+	hooks.CreateHook<&Mob_baseTick>(_Mob_baseTick, &Mob_baseTick);
 }
