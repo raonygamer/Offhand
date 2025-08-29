@@ -105,7 +105,21 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
         bool isAir = blockToUse->isAir();
 
         if (!isAir && block.use(self->mPlayer, at, face, hit)) {
-            Log::Info("block.use() currently not implemented");
+			self->mBuildContext.mLastBuildBlockWasInteractive = block.isInteractiveBlock();
+
+            bool wasSnappable = false;
+
+            if (!self->mBuildContext.mLastBuildBlockWasInteractive && item.isBlock()) {
+                wasSnappable = blockToUse->isSnappableBlock();
+            }
+
+            // This is probably just for scripting so dont care
+			// ItemEventCoordinator::sendEvent(v42, &v67); <- ItemUsedOnEvent
+            self->_sendPlayerInteractWithBlockAfterEvent(self->mPlayer, at, face, hit);
+
+			self->mBuildContext.mLastBuildBlockWasSnappable = wasSnappable;
+			result->mResult = (int)InteractionResult::Result::SUCCESS | (int)InteractionResult::Result::SWING;
+
             return result;
         }
     }
@@ -126,7 +140,6 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
         }
         else {
             useResult.mResult = item.useOn(self->mPlayer, at.x, at.y, at.z, face, hit).mResult;
-            Log::Info("[item.isBlock] item.useOn in return {}", useResult.mResult);
         }
 
         if ((useResult.mResult & (int)InteractionResult::Result::SUCCESS) != 0) {
@@ -187,7 +200,6 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
     InteractionResult result;
 
     container.createTransactionContext(
-        // This lambda gets called whenever GameMode::useItemOn is called within the 2nd lambda
         [&transaction, &self, containerId](Container &container, unsigned int slot, const ItemStack &oldStack, const ItemStack &newStack)
         {
             //Log::Info("Top bit");
@@ -197,10 +209,8 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             self.mPlayer.mTransactionManager.addExpectedAction(action);
             transaction->mTransaction.addAction(action);
         },
-        // This lambda is the first to get called
         [&transaction, &self, pos, face, &result, &stack, slot, isOffhand]()
         {
-			//Log::Info("Bottom bit");
             Player &player = self.mPlayer;
             ILevel &level = *player.mLevel;
 
@@ -248,12 +258,7 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
                 }
                 else
                 {
-                    // IMPORTANT WILL BREAK: GameMode::_sendUseItemOnEvents uses Player::getSelectedItem oof.
-                    // IDA detects it doesn't actually use it tho?
-					//Log::Info("Send self.useItemOn");
-                    //result = self.useItemOn(stackCopy, pos, face, hitResult.mPos, nullptr);
 					GameMode_useItemOn(&self, &result, stackCopy, pos, face, hitResult.mPos, nullptr);
-					//Log::Info("self.useItemOn Result: {}", result.mResult);
                 }
             }
 
@@ -409,12 +414,10 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
 
     playerInv.createTransactionContext(
         [&self](Container& container, unsigned int slot, const ItemStack& oldStack, const ItemStack newStack) {
-            Log::Info("top half");
+            Log::Info("Todo implement the damn top half of this");
             // todo: what is supposed to be in here!!!
         },
         [&self, &gameMode, &stackToUse, &level, &containerToUse]() {
-            Log::Info("bottom half");
-
             if (self->mActionType == ItemUseInventoryTransaction::ActionType::Use) {
 				ItemStack stackCopy = ItemStack(stackToUse);
 
@@ -444,7 +447,7 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                 //}
 
 				const Block& blockToPlaceOn = blockPalette.getBlock(self->mTargetBlockId);
-                Log::Info("blockToPlace {}", blockToPlaceOn.mLegacyBlock->mNameInfo.mFullName.getString());
+                Log::Info("blockToPlaceOn {}", blockToPlaceOn.mLegacyBlock->mNameInfo.mFullName.getString());
 
                 Block* v18 = nullptr;
                 //Actor::setPos(*(a1 + 8), (*a1 + 232i64));
@@ -464,6 +467,7 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                 }*/
 
                 InteractionResult result = gameMode.useItemOn(stackCopy, self->mPos, self->mFace, self->mClickPos, v18);
+                Log::Info("useItemOn result {}", (int)result.mResult);
                 // Actor::setPos(*(a1 + 8), v39);
 
                 if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0)
@@ -475,12 +479,13 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                     }   
 
                     if (gameMode.isLastBuildBlockInteractive()) {
-                        BlockEventCoordinator& blockEvents = level.getBlockEventCoordinator();
-                        blockEvents.sendBlockInteractedWith(gameMode.mPlayer, self->mPos);
+                        // I'm pretty sure this is just for scripting and so i dont really care to impl it.
+                        // BlockEventCoordinator& blockEvents = level.getBlockEventCoordinator();
+                        // blockEvents.sendBlockInteractedWith(gameMode.mPlayer, self->mPos);
+                        Log::Info("todo impl BlockEventCoordinator::sendBlockInteractedWith");
                     }
                 }
                 else {
-                    Log::Info("resending");
 					self->resendBlocksAroundArea(gameMode.mPlayer, self->mPos, self->mFace);
 					self->resendPlayerState(gameMode.mPlayer);
                 }
