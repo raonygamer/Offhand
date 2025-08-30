@@ -22,8 +22,8 @@ local isAutomated = get_config("automated_build")
 local modFolder
 
 if isAutomated then
-    modFolder = path.join(os.curdir(), "dist")
-    includes(path.join(os.curdir(), "Amethyst", "AmethystAPI")) 
+    modFolder = path.join("dist")
+    includes(path.join("Amethyst", "AmethystAPI")) 
 else
     local amethystFolder = path.join(
         os.getenv("localappdata"),
