@@ -10,6 +10,16 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            # Install deps
+            - name: Install Build Dependencies
+              run: |
+                choco install xmake -y
+                xmake --version
+                choco install nasm -y
+                nasm --version
+                choco install deno -y
+                deno --version
+
             - name: Get mod version
               id: get_version
               run: |
@@ -26,14 +36,6 @@ jobs:
                 env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 shell: pwsh
-
-            # Install deps
-            - name: Install Build Dependencies
-              run: |
-                choco install xmake -y
-                xmake --version
-                choco install nasm -y
-                nasm --version
 
             - name: Build
               run: |
