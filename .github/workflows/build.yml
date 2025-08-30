@@ -17,6 +17,7 @@ jobs:
               with:
                   repository: FrederoxDev/Amethyst
                   path: Amethyst
+                  ref: v2
 
             # Build dependencies
             - name: Install XMake
