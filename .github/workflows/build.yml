@@ -1,0 +1,45 @@
+name: Publish Version
+
+on:
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Get mod version
+              id: get_version
+              run: |
+                NEW_VERSION=$(deno run --allow-read --allow-write .github/workflows/scripts/version.ts)
+                echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+            - name: Push bumped version
+              run: |
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git add $env:FILE_PATH
+                git commit -m "Bump version to $env:NEW_VERSION"
+                git push
+                env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                shell: pwsh
+
+            # Install deps
+            - name: Install Build Dependencies
+              run: |
+                choco install xmake -y
+                xmake --version
+                choco install nasm -y
+                nasm --version
+
+            - name: Build
+              run: |
+                xmake f -y --automated_build=y
+                xmake
+
+            - name: Zip dist folder
+              run: |
+                Compress-Archive -Path "dist/*" -DestinationPath "Offhand.zip"

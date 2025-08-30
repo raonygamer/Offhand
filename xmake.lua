@@ -7,6 +7,12 @@ local major = 1
 local minor = 21
 local patch = 3
 
+option("automated_build")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Flag to indicate this is an automated build")
+option_end()
+
 set_languages("c++23")
 set_project(mod_name)
 set_version(string.format("%d.%d.%d", major, minor, patch))
@@ -51,21 +57,30 @@ package_end()
 
 add_requires("libhat", { system = false })
 
-local amethystFolder = path.join(
-    os.getenv("localappdata"),
-    "Packages",
-    "Microsoft.MinecraftUWP_8wekyb3d8bbwe",
-    "LocalState",
-    "games",
-    "com.mojang",
-    "amethyst"
-)
 
-local modFolder = path.join(
-    amethystFolder,
-    "mods",
-    string.format("%s@%s", mod_name, mod_version)
-)
+local isAutomated = get_config("automated_build")
+
+local modFolder
+
+if isAutomated then
+    modFolder = path.join(os.curdir(), "dist")
+else
+    local amethystFolder = path.join(
+        os.getenv("localappdata"),
+        "Packages",
+        "Microsoft.MinecraftUWP_8wekyb3d8bbwe",
+        "LocalState",
+        "games",
+        "com.mojang",
+        "amethyst"
+    )
+
+    modFolder = path.join(
+        amethystFolder,
+        "mods",
+        string.format("%s@%s", mod_name, mod_version)
+    )
+end
 
 set_symbols("debug")
 set_targetdir(modFolder)

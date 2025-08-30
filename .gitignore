@@ -2,3 +2,4 @@ build/
 vc140.pdb
 .xmake/
 vsxmake2022
+dist/
