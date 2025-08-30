@@ -10,18 +10,17 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            # Install deps
-            - name: Install Build Dependencies
-              run: |
-                choco install xmake -y
-                choco install nasm -y
-                choco install deno -y
-                refreshenv
-                xmake --version
-                nasm --version
-                deno --version
-              shell: powershell
+            # Build dependencies
+            - name: Install XMake
+              run: choco install xmake -y
 
+            - name: Install NASM
+              run: choco install nasm -y
+
+            - name: Install Deno
+              run: choco install deno -y
+
+            # Bump mod version
             - name: Get mod version
               id: get_version
               run: |
