@@ -29,6 +29,7 @@ jobs:
               id: get_version
               shell: powershell
               run: |
+                Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
                 refreshenv
                 $NEW_VERSION = deno run --allow-read --allow-write .github/workflows/scripts/version.ts
                 echo "NEW_VERSION=$NEW_VERSION" >> $env:GITHUB_ENV
