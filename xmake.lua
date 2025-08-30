@@ -23,7 +23,7 @@ local modFolder
 
 if isAutomated then
     modFolder = path.join("dist")
-    includes(path.join("Amethyst", "AmethystAPI")) 
+    includes("Amethyst/AmethystAPI") 
 else
     local amethystFolder = path.join(
         os.getenv("localappdata"),
@@ -130,7 +130,7 @@ target(mod_name)
     add_headerfiles("src/**.hpp")
 
     after_build(function (target)
-        local src_json = path.join(os.curdir(), "mod.json")
+        local src_json = path.join("mod.json")
         local dst_json = path.join(modFolder, "mod.json")
         if not os.isdir(modFolder) then
             os.mkdir(modFolder)
