@@ -23,9 +23,10 @@ jobs:
             # Bump mod version
             - name: Get mod version
               id: get_version
+              shell: powershell
               run: |
-                NEW_VERSION=$(deno run --allow-read --allow-write .github/workflows/scripts/version.ts)
-                echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+                $NEW_VERSION = & "C:\ProgramData\chocolatey\lib\deno\tools\deno.exe" run --allow-read --allow-write .github/workflows/scripts/version.ts
+                echo "NEW_VERSION=$NEW_VERSION" >> $env:GITHUB_ENV
 
             - name: Push bumped version
               run: |
