@@ -31,7 +31,7 @@ jobs:
               run: |
                 Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
                 refreshenv
-                $NEW_VERSION = deno run --allow-read --allow-write .github/workflows/scripts/version.ts
+                $NEW_VERSION = deno run --allow-read --allow-write .github/workflows/scripts/VersionTools.ts
                 echo "NEW_VERSION=$NEW_VERSION" >> $env:GITHUB_ENV
                 
             - name: Push bumped version
