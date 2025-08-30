@@ -21,8 +21,8 @@ jobs:
               run: choco install deno -y
 
             # Refresh env
-            - name: Add Chocolatey to PATH
-              run: echo "C:\ProgramData\chocolatey\bin" >> $Env:GITHUB_PATH
+            - name: BLEH
+              run: echo "C:\ProgramData\chocolatey\lib\deno\tools" >> $Env:GITHUB_PATH
 
             # Bump mod version
             - name: Get mod version
