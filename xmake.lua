@@ -17,10 +17,36 @@ set_languages("c++23")
 set_project(mod_name)
 set_version(string.format("%d.%d.%d", major, minor, patch))
 
+local isAutomated = get_config("automated_build")
+
+local modFolder
+
+if isAutomated then
+    modFolder = path.join(os.curdir(), "dist")
+    includes(path.join(os.curdir(), "Amethyst", "AmethystAPI")) 
+else
+    local amethystFolder = path.join(
+        os.getenv("localappdata"),
+        "Packages",
+        "Microsoft.MinecraftUWP_8wekyb3d8bbwe",
+        "LocalState",
+        "games",
+        "com.mojang",
+        "amethyst"
+    )
+
+    modFolder = path.join(
+        amethystFolder,
+        "mods",
+        string.format("%s@%s", mod_name, mod_version)
+    )
+
+    includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI")) 
+end
+
 -- RelWithDebInfo flags
 add_cxxflags("/O2", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
 add_ldflags("/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
-includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI")) 
 
 -- Use NASM for generated asm thunks
 toolchain("nasm")
@@ -56,31 +82,6 @@ package("libhat")
 package_end()
 
 add_requires("libhat", { system = false })
-
-
-local isAutomated = get_config("automated_build")
-
-local modFolder
-
-if isAutomated then
-    modFolder = path.join(os.curdir(), "dist")
-else
-    local amethystFolder = path.join(
-        os.getenv("localappdata"),
-        "Packages",
-        "Microsoft.MinecraftUWP_8wekyb3d8bbwe",
-        "LocalState",
-        "games",
-        "com.mojang",
-        "amethyst"
-    )
-
-    modFolder = path.join(
-        amethystFolder,
-        "mods",
-        string.format("%s@%s", mod_name, mod_version)
-    )
-end
 
 set_symbols("debug")
 set_targetdir(modFolder)

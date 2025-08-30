@@ -7,8 +7,16 @@ jobs:
     build:
         runs-on: windows-latest
         steps:
+            # Checkout current mod
             - name: Checkout code
               uses: actions/checkout@v4
+
+            # Checkout AmethystAPI into /Amethyst
+            - name: Checkout AmethystAPI
+              uses: actions/checkout@v4
+              with:
+                  repository: AmethystAPI/AmethystAPI
+                  path: Amethyst
 
             # Build dependencies
             - name: Install XMake
