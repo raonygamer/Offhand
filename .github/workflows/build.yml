@@ -15,7 +15,7 @@ jobs:
             - name: Checkout AmethystAPI
               uses: actions/checkout@v4
               with:
-                  repository: FrederoxDev/AmethystAPI
+                  repository: FrederoxDev/Amethyst
                   path: Amethyst
 
             # Build dependencies
@@ -27,10 +27,6 @@ jobs:
 
             - name: Install Deno
               run: choco install deno -y
-
-            # Refresh env
-            - name: BLEH
-              run: echo "C:\ProgramData\chocolatey\lib\deno\tools" >> $Env:GITHUB_PATH
 
             # Bump mod version
             - name: Get mod version
