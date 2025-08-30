@@ -15,7 +15,7 @@ jobs:
             - name: Checkout AmethystAPI
               uses: actions/checkout@v4
               with:
-                  repository: AmethystAPI/AmethystAPI
+                  repository: FrederoxDev/AmethystAPI
                   path: Amethyst
 
             # Build dependencies
