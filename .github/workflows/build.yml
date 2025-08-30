@@ -20,12 +20,20 @@ jobs:
             - name: Install Deno
               run: choco install deno -y
 
+            # Refresh env
+            - name: Refresh Env
+              shell: powershell
+              run: |
+                # Import Chocolatey helper
+                Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+                refreshenv
+
             # Bump mod version
             - name: Get mod version
               id: get_version
               shell: powershell
               run: |
-                $NEW_VERSION = & "C:\ProgramData\chocolatey\lib\deno\tools\deno.exe" run --allow-read --allow-write .github/workflows/scripts/version.ts
+                $NEW_VERSION = deno run --allow-read --allow-write .github/workflows/scripts/version.ts
                 echo "NEW_VERSION=$NEW_VERSION" >> $env:GITHUB_ENV
 
             - name: Push bumped version
