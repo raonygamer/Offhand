@@ -22,9 +22,12 @@ local isAutomated = get_config("automated_build")
 local modFolder
 
 if isAutomated then
+    print("Doing automated build")
     modFolder = path.join("dist")
     includes("Amethyst/AmethystAPI") 
 else
+    print("Doing real build")
+    
     local amethystFolder = path.join(
         os.getenv("localappdata"),
         "Packages",
