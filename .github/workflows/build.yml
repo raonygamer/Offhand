@@ -14,11 +14,13 @@ jobs:
             - name: Install Build Dependencies
               run: |
                 choco install xmake -y
-                xmake --version
                 choco install nasm -y
-                nasm --version
                 choco install deno -y
+                refreshenv
+                xmake --version
+                nasm --version
                 deno --version
+              shell: powershell
 
             - name: Get mod version
               id: get_version
@@ -41,6 +43,7 @@ jobs:
               run: |
                 xmake f -y --automated_build=y
                 xmake
+              shell: powershell
 
             - name: Zip dist folder
               run: |
