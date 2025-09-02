@@ -98,7 +98,7 @@ void UIControlFactory_populateCustomRenderComponent(UIControlFactory* self, cons
 
 void RegisterOffhandHud()
 {
-	return;
+	//return;
 
     Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 
