@@ -24,7 +24,7 @@ local modFolder
 if isAutomated then
     print("Doing automated build")
     modFolder = path.join("dist")
-    includes("Amethyst/AmethystAPI") 
+    includes(path.join(os.projectdir(), "Amethyst", "AmethystAPI"))
 else
     print("Doing real build")
     
