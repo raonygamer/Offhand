@@ -1,6 +1,6 @@
 -- Mod Options
 local mod_name = "Offhand"
-local mod_version = "2.0.0"
+local mod_version = "1.0.7"
 
 -- Minecraft version
 local major = 1
