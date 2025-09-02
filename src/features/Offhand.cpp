@@ -57,8 +57,6 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
 
     result->mResult = 0;
 
-    //Log::Info("GameMode_useItemOn {}", self->mPlayer.isClientSide() ? "client" : "server");
-
     // idk what this does but it doesn't seem to have anything to do with networking / decreasing item stack
     if ((self->_sendUseItemOnEvents(item, at, face, hit).mResult & (int)InteractionResult::Result::SUCCESS) == 0) return result;
 
@@ -149,13 +147,13 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
 		}
 
         if (item) {
-            Log::Info("Player::setSelectedItem()");
+            Log::Info("Todo: Player::setSelectedItem()");
         }
         else {
-            Log::Info("PlayerInventory::clearSlot()");
+            Log::Info("Todo: PlayerInventory::clearSlot()");
         }
 
-        Log::Info("GameMode::_sendPlayerInteractWithBlockAfterEvent");
+        Log::Info("Todo: GameMode::_sendPlayerInteractWithBlockAfterEvent");
 
         return result;
     }
@@ -181,9 +179,10 @@ InteractionResult* GameMode_useItemOn(GameMode* self, InteractionResult* result,
 bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Container &container, int slot, ContainerID containerId, const BlockPos &pos, FacingID face, bool isSimTick, bool isOffhand)
 {
     const Item *item = stack.getItem();
-    bool mayUseItem = !stack.isNull() && (!isSimTick || (isSimTick && item->canUseOnSimTick()));
+    // I don't know what the fuck this is, or what it filters out xD.
+    bool realMayUse = !stack.mValid || stack.mItem == nullptr || stack.isNull() || stack.mCount == 0 || !isSimTick || !item || item->canUseOnSimTick();
 
-    if (!mayUseItem)
+    if (!realMayUse)
     {
         Log::Info("May not use item: {}", stack);
         return false;
@@ -202,7 +201,6 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
     container.createTransactionContext(
         [&transaction, &self, containerId](Container &container, unsigned int slot, const ItemStack &oldStack, const ItemStack &newStack)
         {
-            //Log::Info("Top bit");
             InventorySource source(InventorySourceType::ContainerInventory, containerId, InventorySource::InventorySourceFlags::NoFlag);
             InventoryAction action(source, slot, oldStack, newStack);
 
@@ -273,7 +271,6 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
             // Block placement timings
             if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0)
             {
-                //Log::Info("Test");
                 self.mBuildContext.mLastBuiltBlockPosition = calculatedPlacePos;
 
                 // Seems to get reset often enogu to be false each item use.
@@ -287,8 +284,10 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
                 if ((result.mResult & (int)InteractionResult::Result::SWING) != 0)
                 {
                     if (!isOffhand) player.swing();
+
                     else {
-                        if (!player.hasComponent<OffhandSwingComponent>()) {
+						OffhandSwingComponent* _swingComp = player.tryGetComponent<OffhandSwingComponent>();
+                        if (!_swingComp) {
 							player.addComponent<OffhandSwingComponent>();
                         }
 
@@ -306,8 +305,6 @@ bool tryUseItem(GameMode &self, const ItemStack &stack, const Player &player, Co
                 }
             }
         });
-
-    Log::Info("[tryUseItem] InteractResult: {}", result.mResult);
 
     if (player.isClientSide())
     {
@@ -356,14 +353,16 @@ enum InventoryTransactionError : uint64_t {
 SafetyHookInline _ItemUseInventoryTransaction_handle;
 
 InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTransaction* self, Player& player, bool isSenderAuthority) {
-	// todo: game checks if player is dead, if so returns StateMismatch
+    if (!player.isAlive()) {
+		Log::Warning("InventoryTransactionError::StateMismatch - Player is not alive");
+		return InventoryTransactionError::StateMismatch;
+    }
 
 	Level& level = *player.getLevel()->asLevel();
 	bool isClientSide = level.isClientSide;
     BlockPalette& blockPalette = level.getBlockPalette();
 
     ItemStack stack = ItemStack::fromDescriptor(self->mItem, blockPalette, isClientSide);
-    Log::Info("ItemUseInventoryTransaction_handle stack {} actionType {}", stack, (int)self->mActionType);
 
     PlayerInventory& playerInv = *player.playerInventory;
     Inventory& inv = *playerInv.mInventory.get();
@@ -377,45 +376,46 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
     const ItemStack& stackToUse = usedMainhand ? mainHandItem : offHandItem;
     Container* containerToUse = usedMainhand ? &inv : (Container*)equipment->mHand.get();
 
-    //Log::Info("ItemUseInventoryTransaction_handle stackToUse is offhand: {}", stackToUse.isOffhandItem());
-
     bool itemsMatch = true; // InventoryTransaction::checkTransactionItemsMatch
 	bool slotsMatch = true; // self->mSlot == playerInv.mSelected; <- to check properly probs need to switch between offhand and inv slots
 
     bool areItemsAndSlotsValid = isSenderAuthority || itemsMatch && slotsMatch;
 
     if (!areItemsAndSlotsValid) {
-        Log::Info("ItemUseInventoryTransaction_handle: Invalid transaction, isSenderAuthority: {}, itemsMatch: {}, slotsMatch: {}", isSenderAuthority, itemsMatch, slotsMatch);
+		Log::Warning("InventoryTransactionError::ProbablyError - Items or slots do not match");
         return InventoryTransactionError::ProbablyError;
     }
 
     GameMode& gameMode = player.getGameMode();
     float maxPickRange = gameMode.getMaxPickRange() + 0.5f;
-    bool distanceCheck = true; // todo add
+    bool distanceCheck = player.distanceTo(self->mPos) <= maxPickRange;
 
     bool isValidAction = self->mActionType == ItemUseInventoryTransaction::ActionType::Use || distanceCheck || isSenderAuthority;
 
     if (!isValidAction) {
-        Log::Info("ItemUseInventoryTransaction_handle: Invalid action type: {}", (int)self->mActionType);
         return InventoryTransactionError::ProbablyError;
     }
 
+    ContainerID containerId = usedMainhand ? ContainerID::CONTAINER_ID_INVENTORY : ContainerID::CONTAINER_ID_OFFHAND;
+
 	InventorySource source(
         InventorySourceType::ContainerInventory, 
-        usedMainhand ? ContainerID::CONTAINER_ID_INVENTORY : ContainerID::CONTAINER_ID_OFFHAND, 
+        containerId,
         InventorySource::InventorySourceFlags::NoFlag
     );
 
 	const std::vector<InventoryAction>& actions = self->mTransaction.getActions(source);
     
     for (auto& action : actions) {
+        Log::Info("Todo: action not handled!!");
         // todo: game does something, there are no actions sent for placing blocks it seems?
     }
 
     playerInv.createTransactionContext(
-        [&self](Container& container, unsigned int slot, const ItemStack& oldStack, const ItemStack newStack) {
-            Log::Info("Todo implement the damn top half of this");
-            // todo: what is supposed to be in here!!!
+        [&self, &player, containerId](Container& container, unsigned int slot, const ItemStack& oldStack, const ItemStack newStack) {
+            InventorySource source(InventorySourceType::ContainerInventory, containerId, InventorySource::InventorySourceFlags::NoFlag);
+            InventoryAction action(source, slot, oldStack, newStack);
+            player.mTransactionManager.addExpectedAction(action);
         },
         [&self, &gameMode, &stackToUse, &level, &containerToUse]() {
             if (self->mActionType == ItemUseInventoryTransaction::ActionType::Use) {
@@ -425,11 +425,8 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                 // i.e. stone block returns true
                 // but torch item returns false
                 if (!gameMode.baseUseItem(stackCopy)) {
-                    Log::Info("calling ItemUseInventoryTransaction::resendPlayerState");
 					self->resendPlayerState(gameMode.mPlayer);
                 }
-
-                Log::Info("before {}, after: {}", stackToUse, stackCopy);
             }
             else if (self->mActionType == ItemUseInventoryTransaction::ActionType::Destroy) {
 				Log::Info("todo impl self->mActionType == ItemUseInventoryTransaction::ActionType::Destroy");
@@ -447,7 +444,6 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                 //}
 
 				const Block& blockToPlaceOn = blockPalette.getBlock(self->mTargetBlockId);
-                Log::Info("blockToPlaceOn {}", blockToPlaceOn.mLegacyBlock->mNameInfo.mFullName.getString());
 
                 Block* v18 = nullptr;
                 //Actor::setPos(*(a1 + 8), (*a1 + 232i64));
@@ -467,7 +463,6 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
                 }*/
 
                 InteractionResult result = gameMode.useItemOn(stackCopy, self->mPos, self->mFace, self->mClickPos, v18);
-                Log::Info("useItemOn result {}", (int)result.mResult);
                 // Actor::setPos(*(a1 + 8), v39);
 
                 if ((result.mResult & (int)InteractionResult::Result::SUCCESS) != 0)
@@ -480,9 +475,8 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
 
                     if (gameMode.isLastBuildBlockInteractive()) {
                         // I'm pretty sure this is just for scripting and so i dont really care to impl it.
-                        // BlockEventCoordinator& blockEvents = level.getBlockEventCoordinator();
-                        // blockEvents.sendBlockInteractedWith(gameMode.mPlayer, self->mPos);
-                        Log::Info("todo impl BlockEventCoordinator::sendBlockInteractedWith");
+                         BlockEventCoordinator& blockEvents = level.getBlockEventCoordinator();
+                         blockEvents.sendBlockInteractedWith(gameMode.mPlayer, self->mPos);
                     }
                 }
                 else {
@@ -492,6 +486,9 @@ InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTra
             }
         }
     );
+
+    // What on earth does this mean
+    // ComplexInventoryTransaction::_setDepenetrationOverride(this, (player + 8));
 
     return InventoryTransactionError::ProbablyError; // todo: return correct error code
 }

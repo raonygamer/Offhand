@@ -1,6 +1,6 @@
 {
     "imports": {
-        "Regolith-Generators": "../../../../../../../Regolith-Generators/api/mod.ts",
+        "Regolith-Generators": "jsr:@frederoxdev/regolith-generators",
         "@/RP/": "../../RP/",
         "@/Generators/": "../generated/"
     },

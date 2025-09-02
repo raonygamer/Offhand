@@ -11,7 +11,7 @@
     "vc140.pdb": true
   },
   "deno.enable": true,
-  "deno.enablePaths": ["data/packs/"],
+  "deno.enablePaths": ["data/packs/", ".github/workflows/"],
   "deno.config": "./data/packs/data/generated/deno.json",
   "files.associations": {
     "algorithm": "cpp",
