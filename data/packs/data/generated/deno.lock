@@ -1,11 +1,19 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@frederoxdev/regolith-generators@*": "1.2.4",
     "jsr:@std/fs@1.0.6": "1.0.6",
     "jsr:@std/internal@^1.0.9": "1.0.10",
     "jsr:@std/path@^1.0.8": "1.1.1"
   },
   "jsr": {
+    "@frederoxdev/regolith-generators@1.2.4": {
+      "integrity": "8a867f04560c6cd87fe1130ec0d2aec1867bf0e947e280db33d79d053c7319c1",
+      "dependencies": [
+        "jsr:@std/fs",
+        "jsr:@std/path"
+      ]
+    },
     "@std/fs@1.0.6": {
       "integrity": "42b56e1e41b75583a21d5a37f6a6a27de9f510bcd36c0c85791d685ca0b85fa2",
       "dependencies": [
@@ -74,5 +82,10 @@
     "https://deno.land/std@0.203.0/path/to_file_url.ts": "00e6322373dd51ad109956b775e4e72e5f9fa68ce2c6b04e4af2a6eed3825d31",
     "https://deno.land/std@0.203.0/path/to_namespaced_path.ts": "1b1db3055c343ab389901adfbda34e82b7386bcd1c744d54f9c1496ee0fd0c3d",
     "https://deno.land/std@0.203.0/path/win32.ts": "8b3f80ef7a462511d5e8020ff490edcaa0a0d118f1b1e9da50e2916bdd73f9dd"
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@frederoxdev/regolith-generators@*"
+    ]
   }
 }

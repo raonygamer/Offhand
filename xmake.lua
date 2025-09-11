@@ -3,9 +3,7 @@ local mod_name = "Offhand"
 local mod_version = "1.0.7"
 
 -- Minecraft version
-local major = 1
-local minor = 21
-local patch = 3
+local major, minor, patch = 1, 21, 3
 
 option("automated_build")
     set_default(false)
@@ -17,17 +15,20 @@ set_languages("c++23")
 set_project(mod_name)
 set_version(string.format("%d.%d.%d", major, minor, patch))
 
-local isAutomated = get_config("automated_build")
-
+local automated = is_config("automated_build", true)
 local modFolder
+local amethystApiPath
 
-if isAutomated then
-    print("Doing automated build")
-    modFolder = path.join("dist")
-    includes(path.join(os.projectdir(), "Amethyst", "AmethystAPI"))
+if automated then
+    print("==> Automated build mode")
+    modFolder = path.join(os.projectdir(), "dist")
+    amethystApiPath = path.join(os.projectdir(), "Amethyst", "AmethystAPI")
 else
-    print("Doing real build")
-    
+    print("==> Real/local build mode")
+    set_symbols("debug")
+    local amethystSrc = os.getenv("AMETHYST_SRC")
+    amethystApiPath = amethystSrc and path.join(amethystSrc, "AmethystAPI") or nil
+
     local amethystFolder = path.join(
         os.getenv("localappdata"),
         "Packages",
@@ -43,65 +44,43 @@ else
         "mods",
         string.format("%s@%s", mod_name, mod_version)
     )
+end
 
-    includes(path.join(os.getenv("AMETHYST_SRC"), "AmethystAPI")) 
+-- Only include AmethystAPI if present on disk at configure-time
+if amethystApiPath and os.isdir(amethystApiPath) then
+    includes(amethystApiPath)
+    includes(path.join(amethystApiPath, "packages", "libhat"))
 end
 
 -- RelWithDebInfo flags
 add_cxxflags("/O2", "/DNDEBUG", "/MD", "/EHsc", "/FS", "/MP")
 add_ldflags("/OPT:REF", "/OPT:ICF", "/INCREMENTAL:NO", {force = true})
 
--- Use NASM for generated asm thunks
-toolchain("nasm")
-    set_kind("standalone")
-    on_load(function (toolchain)
-        toolchain:set_tools("as", "nasm")
-    end)
-toolchain_end() 
-
--- Project dependencies
-package("libhat")
-    set_kind("static")
-    add_urls("https://github.com/BasedInc/libhat.git")
-    add_versions("commit", "3321c66b7e699e5585948bdb663c105efa48c680")
-    add_deps("cmake")
-
-    on_install(function (package)
-        local configs = {}
-        table.insert(configs, "-DCMAKE_CXX_STANDARD=23")
-        table.insert(configs, "-DCMAKE_CXX_STANDARD_REQUIRED=ON")
-        table.insert(configs, "-DCMAKE_CXX_EXTENSIONS=OFF")
-        table.insert(configs, "-DLIBHAT_TESTING=OFF")
-        table.insert(configs, "-DLIBHAT_EXAMPLES=OFF")
-        table.insert(configs, "-DLIBHAT_MODULE_TARGET=OFF")
-        table.insert(configs, "-DLIBHAT_STATIC_C_LIB=OFF")
-        table.insert(configs, "-DLIBHAT_SHARED_C_LIB=OFF")
-        table.insert(configs, "-DLIBHAT_INSTALL_TARGET=ON")
-        table.insert(configs, "-DCMAKE_CXX_FLAGS=/O2 /Zi /DNDEBUG /MD /EHsc /FS")
-
-        import("package.tools.cmake").install(package, configs)
-        os.cp("include", package:installdir())
-    end)
-package_end()
-
-add_requires("libhat", { system = false })
-
-set_symbols("debug")
 set_targetdir(modFolder)
+set_toolchains("msvc", {asm = "nasm"})
 
 target(mod_name)
     set_kind("shared")
-    set_toolchains("nasm")
-    add_deps("AmethystAPI")
+    add_deps("AmethystAPI", "libhat")
+
+    -- Hard fail if AmethystAPI is missing
+    on_load(function (t)
+        if not (amethystApiPath and os.isdir(amethystApiPath)) then
+            raise("AmethystAPI not found at: " .. tostring(amethystApiPath) ..
+                  "\nCI: ensure repo is checked out to Amethyst/AmethystAPI" ..
+                  "\nLocal: set AMETHYST_SRC to point to your Amethyst clone.")
+        end
+    end)
     
     -- Force rebuild when any source file changes
     set_policy("build.optimization.lto", true )
     set_policy("build.across_targets_in_parallel", true )
 
-    add_files(
-        "src/**.cpp",
-        "src/**.asm"
-    )
+    add_files("src/**.cpp")
+
+    add_files("src/**.asm")
+        set_toolset("as", "nasm")
+        add_asflags("-f win64", { force = true })
 
     add_defines(
         string.format('MOD_VERSION="%d.%d.%d"', major, minor, patch),
@@ -114,20 +93,7 @@ target(mod_name)
 
     -- Deps
     add_packages("AmethystAPI", "libhat")
-
-    -- need to figure out how to fix this shit lmao
-    local localAppData = os.getenv("LOCALAPPDATA")
-
-    add_links(
-        "user32", 
-        "oleaut32", 
-        "windowsapp", 
-        path.join(localAppData, ".xmake/packages/l/libhat/@default/3c332be551f6485e8d17e1830ee49789/lib/libhat")
-    )
-
-    add_includedirs(
-        path.join(localAppData, ".xmake/packages/l/libhat/@default/3c332be551f6485e8d17e1830ee49789/include")
-    )
+    add_links("user32", "oleaut32", "windowsapp")
 
     add_includedirs("src", {public = true})
     add_headerfiles("src/**.hpp")

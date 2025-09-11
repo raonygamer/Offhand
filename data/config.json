@@ -3,29 +3,44 @@
 	"author": "FrederoxDev",
 	"name": "offhand",
 	"packs": {
-		"resourcePack": "./packs/RP"
+		"resourcePack": "./packs/RP",
+		"behaviorPack": "./packs/BP"
 	},
 	"regolith": {
 		"dataPath": "./packs/data",
 		"filterDefinitions": {
 			"regolith_generators": {
-				"runWith": "deno",
-				"script": "../../../../Regolith-Generators/regolith_generators/src/index.ts"
+				"url": "github.com/FrederoxDev/Regolith-Generators",
+				"version": "1.0.4"
 			}
 		},
 		"formatVersion": "1.4.0",
 		"profiles": {
 			"default": {
 				"export": {
+					"bpPath": "%localappdata%/Packages/Microsoft.MinecraftUWP_8wekyb3d8bbwe/LocalState/games/com.mojang/amethyst/mods/Offhand@1.0.7/behavior_packs/main_bp",
 					"build": "standard",
 					"readOnly": false,
-					"target": "exact",
 					"rpPath": "%localappdata%/Packages/Microsoft.MinecraftUWP_8wekyb3d8bbwe/LocalState/games/com.mojang/amethyst/mods/Offhand@1.0.7/resource_packs/main_rp",
-					"bpPath": "%localappdata%/Packages/Microsoft.MinecraftUWP_8wekyb3d8bbwe/LocalState/games/com.mojang/amethyst/mods/Offhand@1.0.7/behavior_packs/main_bp"
+					"target": "exact"
 				},
 				"filters": [
 					{
 						"filter": "regolith_generators"
+					}
+				]
+			},
+			"local": {
+				"export": {
+					"bpPath": "../dist/behavior_packs/main_bp",
+					"build": "standard",
+					"readOnly": false,
+					"rpPath": "../dist/resource_packs/main_rp",
+					"target": "exact"
+				},
+				"filters": [
+					{
+						"profile": "default"
 					}
 				]
 			}

@@ -4,3 +4,5 @@ vc140.pdb
 vsxmake2022
 dist/
 Amethyst/
+packages/
+/.vscode/compile_commands.json
