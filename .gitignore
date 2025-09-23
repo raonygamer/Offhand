@@ -6,3 +6,4 @@ dist/
 Amethyst/
 packages/
 /.vscode/compile_commands.json
+/.importer

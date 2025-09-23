@@ -28,6 +28,7 @@
 #include <amethyst/runtime/HookManager.hpp>
 #include <amethyst/runtime/ModContext.hpp>
 #include "features/OffhandSwingComponent.hpp"
+#include <minecraft/src/common/world/SimpleContainer.hpp>
 
 extern "C" void *ItemUseInventoryTransaction_ctor = nullptr;
 extern "C" void *NetworkItemStackDescriptor_ctor = nullptr;
@@ -340,16 +341,6 @@ bool GameMode_buildBlock(GameMode *self, BlockPos *pos, FacingID face, bool isSi
     return tryUseItem(*self, offHandItem, player, *equipment->mHand, 1, ContainerID::CONTAINER_ID_OFFHAND, *pos, face, isSimTick, true);
 }
 
-enum InventoryTransactionError : uint64_t {
-    Unknown0 = 0,
-    Success = 1,
-    Unknown2 = 2,
-    ProbablyError = 3,
-
-
-    StateMismatch = 7
-};
-
 SafetyHookInline _ItemUseInventoryTransaction_handle;
 
 InventoryTransactionError ItemUseInventoryTransaction_handle(ItemUseInventoryTransaction* self, Player& player, bool isSenderAuthority) {
@@ -497,15 +488,9 @@ void RegisterOffhandHooks()
 {
     Amethyst::HookManager &hooks = Amethyst::GetHookManager();
 
-    ItemUseInventoryTransaction_ctor = (void *)SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F");
-    NetworkItemStackDescriptor_ctor = (void *)SigScan("48 89 5C 24 ? 55 56 57 41 56 41 57 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 48 8B FA 48 8B F1 48 89 4C 24 ? 0F B6 5A");
+    ItemUseInventoryTransaction_ctor = (void*)SigScan("48 89 5C 24 ? 57 48 83 EC ? 48 8D 59 ? C7 41 ? ? ? ? ? 48 8D 05 ? ? ? ? 48 89 5C 24 ? 48 89 01 48 8B F9 48 8B CB E8 ? ? ? ? 33 C9 48 8D 05 ? ? ? ? 48 89 4B ? 0F 57 C0 48 89 4B ? 48 89 4B ? 48 8B 5C 24 ? 48 89 07 48 8D 05 ? ? ? ? 48 89 4F ? 48 89 4F");
 
-    hooks.RegisterFunction<&GameMode_buildBlock>("48 89 5C 24 ? 48 89 74 24 ? 55 57 41 54 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 41 0F B6 F1");
-    hooks.CreateHook<&GameMode_buildBlock>(_GameMode_buildBlock, &GameMode_buildBlock);
-
-    hooks.RegisterFunction<&GameMode_useItemOn>("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 4D 8B E1 49 8B F0 4C 8B EA");
-	hooks.CreateHook<&GameMode_useItemOn>(_GameMode_useItemOn, &GameMode_useItemOn);
-
-    hooks.RegisterFunction<&ItemUseInventoryTransaction_handle>("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 0F 29 B4 24 ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 0F B6 E0");
-	hooks.CreateHook<&ItemUseInventoryTransaction_handle>(_ItemUseInventoryTransaction_handle, &ItemUseInventoryTransaction_handle);
+	VHOOK(GameMode, buildBlock, this);
+    VHOOK(GameMode, useItemOn, this);
+	HOOK(ItemUseInventoryTransaction, handle);
 }

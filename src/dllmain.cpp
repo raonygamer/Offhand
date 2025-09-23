@@ -19,9 +19,9 @@ void OnRegisterItems(RegisterItemsEvent &event)
 }
 
 // Ran when the mod is loaded into the game by AmethystRuntime
-ModFunction void Initialize(AmethystContext &ctx)
+ModFunction void Initialize(AmethystContext &ctx, const Mod& mod)
 {
-    Amethyst::InitializeAmethystMod(ctx);
+    Amethyst::InitializeAmethystMod(ctx, mod);
     Amethyst::GetEventBus().AddListener<RegisterItemsEvent>(&OnRegisterItems);
 
     //Amethyst::GetContext().mFeatures->enableInputSystem = true;

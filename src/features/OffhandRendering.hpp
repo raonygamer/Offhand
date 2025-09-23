@@ -8,7 +8,7 @@
 #include <minecraft/src-deps/core/math/Math.hpp>
 #include "features/OffhandSwingComponent.hpp"
 
-SafetyHookInline _ItemInHandRenderer_transformOffhandItem;
+SafetyHookInline _ItemInHandRenderer__transformOffhandItem;
 
 float getOffhandAttackAnim(Player& player, float a) {
 	OffhandSwingComponent* offhandSwing = player.tryGetComponent<OffhandSwingComponent>();
@@ -19,7 +19,7 @@ float getOffhandAttackAnim(Player& player, float a) {
 	return (delta * a) + offhandSwing->mOffhandOAttackAnim;
 }
 
-void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef& matrixStack) {
+void ItemInHandRenderer__transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef& matrixStack) {
 	ClientInstance& client = *Amethyst::GetContext().mClientInstance;
 	LocalPlayer* player = client.getLocalPlayer();
 	if (!player) return;
@@ -29,7 +29,7 @@ void _transformOffhandItem(ItemInHandRenderer* self, MatrixStack::MatrixStackRef
 	const ItemStack& offhand = equipment->mHand->mItems[1];
 
 	if (offhand.isNull() || !offhand.isBlock() || offhand.getItem()->isBlockPlanterItem() || !self->_canTessellateAsBlockItem(offhand)) {
-		_ItemInHandRenderer_transformOffhandItem.call<void, ItemInHandRenderer*, MatrixStack::MatrixStackRef&>(self, matrixStack);
+		_ItemInHandRenderer__transformOffhandItem.call<void, ItemInHandRenderer*, MatrixStack::MatrixStackRef&>(self, matrixStack);
 		return;
 	}
 
@@ -124,15 +124,16 @@ void Mob_baseTick(Mob* self) {
 void RegisterOffhandRendering() {
 	Amethyst::HookManager& hooks = Amethyst::GetHookManager();
 
-	//hooks.RegisterFunction<&ItemInHandRenderer_renderOffhandItem>("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D 6C 24 ? 48 81 EC ? ? ? ? 0F 29 B4 24 ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 45 ? 44 88 4D");
-	//hooks.CreateHook<&ItemInHandRenderer_renderOffhandItem>(_ItemInHandRenderer_renderOffhandItem, &ItemInHandRenderer_renderOffhandItem);
+	//hooks.RegisterFunction<&_transformOffhandItem>("40 53 48 83 EC ? 48 8B 02 0F 57 DB");
+	//hooks.CreateHook<&_transformOffhandItem>(_ItemInHandRenderer_transformOffhandItem, &_transformOffhandItem);
 
-	hooks.RegisterFunction<&_transformOffhandItem>("40 53 48 83 EC ? 48 8B 02 0F 57 DB");
-	hooks.CreateHook<&_transformOffhandItem>(_ItemInHandRenderer_transformOffhandItem, &_transformOffhandItem);
+	//hooks.RegisterFunction<&Player_aiStep>("48 8B C4 48 89 58 ? 48 89 70 ? 57 48 81 EC ? ? ? ? 0F 29 70 ? 0F 29 78 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 84 24 ? ? ? ? 48 8B F9");
+	//hooks.CreateHook<&Player_aiStep>(_Player_aiStep, &Player_aiStep);
 
-	hooks.RegisterFunction<&Player_aiStep>("48 8B C4 48 89 58 ? 48 89 70 ? 57 48 81 EC ? ? ? ? 0F 29 70 ? 0F 29 78 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 84 24 ? ? ? ? 48 8B F9");
-	hooks.CreateHook<&Player_aiStep>(_Player_aiStep, &Player_aiStep);
+	//hooks.RegisterFunction<&Mob_baseTick>("48 89 5C 24 ? 56 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 8B 81");
+	//hooks.CreateHook<&Mob_baseTick>(_Mob_baseTick, &Mob_baseTick);
 
-	hooks.RegisterFunction<&Mob_baseTick>("48 89 5C 24 ? 56 48 83 EC ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 44 24 ? 8B 81");
-	hooks.CreateHook<&Mob_baseTick>(_Mob_baseTick, &Mob_baseTick);
+	VHOOK(Player, aiStep, this);
+	VHOOK(Mob, baseTick, this);
+	HOOK(ItemInHandRenderer, _transformOffhandItem);
 }

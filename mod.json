@@ -1,7 +1,8 @@
 {
     "meta": {
         "name": "Offhand",
-        "version": "1.0.10",
-        "author": "FrederoxDev"
+        "version": "1.0.7",
+        "author": "FrederoxDev",
+        "namespace": "fx_offhand"
     }
 }

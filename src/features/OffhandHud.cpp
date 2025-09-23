@@ -14,12 +14,14 @@
 #include <minecraft/src-client/common/client/game/MinecraftGame.hpp>
 #include <minecraft/src-deps/input/InputMappingFactory.hpp>
 #include <minecraft/src-deps/input/InputMapping.hpp>
+#include <minecraft/src/common/world/SimpleContainer.hpp>
+#include <minecraft/src-client/common/client/gui/controls/UIControlFactory.hpp>
 
 class UIResolvedDef;
 class UIControl;
 class UIControlFactory;
 
-SafetyHookInline _UIControlFactory_populateCustomRenderComponent;
+SafetyHookInline _UIControlFactory__populateCustomRenderComponent;
 
 static HashedString flushString(0xA99285D21E94FC80, "ui_flush");
 
@@ -31,7 +33,8 @@ public:
 		return std::make_shared<TestRenderer>();
 	}
 
-	virtual void render(MinecraftUIRenderContext& ctx, IClientInstance& client, UIControl& owner, int32_t pass, RectangleArea& renderAABB) override {
+	virtual void render(MinecraftUIRenderContext& ctx, IClientInstance& _client, UIControl& owner, int32_t pass, RectangleArea& renderAABB) override {
+		ClientInstance& client = _client.asInstance();
 		LocalPlayer* player = client.getLocalPlayer();
 		if (!player || mPropagatedAlpha < 0.5) return;
 
@@ -47,7 +50,7 @@ public:
 
 		glm::tvec2<float> pos = owner.getPosition();
 
-		BaseActorRenderContext renderCtx(ctx.mScreenContext, &client, client.minecraftGame);
+		BaseActorRenderContext renderCtx(*ctx.mScreenContext, client, *client.mMinecraftGame);
 		int yOffset = offhand.getItem()->getIconYOffset();
 
 		renderCtx.itemRenderer->renderGuiItemNew(&renderCtx, &offhandCopy, 0, pos.x + 3.0f, pos.y - yOffset + 3.0f, false, 1.0f, mPropagatedAlpha, 1.0f);
@@ -57,7 +60,7 @@ public:
 		if (offhand.mCount == 1) return;
 
 		std::string text = std::format("{}", offhand.mCount);
-		float lineLength = ctx.getLineLength(*client.minecraftGame->mFontHandle.mDefaultFont, text, 1.0f, false);
+		float lineLength = ctx.getLineLength(*client.mMinecraftGame->mFontHandle.mDefaultFont, text, 1.0f, false);
 
 		renderAABB._x0 = pos.x + (20.0f - lineLength);
 		renderAABB._x1 = pos.x + 22.0f;
@@ -77,7 +80,7 @@ public:
 	}
 };
 
-void UIControlFactory_populateCustomRenderComponent(UIControlFactory* self, const UIResolvedDef& resolved, UIControl& control) {
+void UIControlFactory__populateCustomRenderComponent(UIControlFactory* self, const UIResolvedDef& resolved, UIControl& control) {
 	std::string rendererType = resolved.getAsString("renderer");
 
 	if (rendererType == "offhand_hud_renderer") {
@@ -93,15 +96,11 @@ void UIControlFactory_populateCustomRenderComponent(UIControlFactory* self, cons
 		return;
 	}
 
-	_UIControlFactory_populateCustomRenderComponent.call<void, UIControlFactory*, const UIResolvedDef&, UIControl&>(self, resolved, control);
+	_UIControlFactory__populateCustomRenderComponent.call<void, UIControlFactory*, const UIResolvedDef&, UIControl&>(self, resolved, control);
 }
 
 void RegisterOffhandHud()
 {
-	return;
-
     Amethyst::HookManager& hooks = Amethyst::GetHookManager();
-
-    hooks.RegisterFunction<&UIControlFactory_populateCustomRenderComponent>("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 4D 8B E0 4C 8B FA 4C 8B E9 49 8B D0");
-	hooks.CreateHook<&UIControlFactory_populateCustomRenderComponent>(_UIControlFactory_populateCustomRenderComponent, &UIControlFactory_populateCustomRenderComponent);
+	HOOK(UIControlFactory, _populateCustomRenderComponent);
 } 
